@@ -74,6 +74,9 @@ fun IRaceResultsApp() {
     var userPreferences by remember { mutableStateOf<UserPreferences?>(null) }
     var isLoadingSetup by remember { mutableStateOf(false) }
     var setupErrorMessage by remember { mutableStateOf<String?>(null) }
+    var standings by remember { mutableStateOf<List<StandingEntry>>(emptyList()) }
+    var classes by remember { mutableStateOf<List<RacingClass>>(emptyList()) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -158,6 +161,65 @@ fun IRaceResultsApp() {
             preferencesManager.clearUserInfo()
             userPreferences = preferencesManager.userPreferencesFlow.first()
             currentDrawerRoute = ""
+        }
+    }
+
+    // Fetch standings data
+    fun fetchStandingsData(leagueId: String) {
+        scope.launch {
+            isRefreshing = true
+            try {
+                // Fetch classes
+                val classesResponse = RetrofitClient.api.getClasses(leagueId)
+                if (classesResponse.isSuccessful) {
+                    val classesData = classesResponse.body() ?: emptyList()
+                    classes = classesData.map {
+                        RacingClass(it.className, it.classNumber.toString())
+                    }
+                }
+
+                // Fetch class totals (standings)
+                val standingsResponse = RetrofitClient.api.getClassTotals(leagueId)
+                if (standingsResponse.isSuccessful) {
+                    val standingsData = standingsResponse.body() ?: emptyList()
+                    android.util.Log.d("MainActivity", "Number of class groups: ${standingsData.size}")
+
+                    standings = standingsData.flatMapIndexed { classIndex, classGroup ->
+                        classGroup.mapNotNull { entry ->
+                            try {
+                                // Each entry is a Map with keys like Pos, Name, Total, etc.
+                                @Suppress("UNCHECKED_CAST")
+                                val map = entry as? Map<String, Any> ?: return@mapNotNull null
+
+                                val position = (map["Pos"] as? Double)?.toInt() ?: 0
+                                val displayName = map["Name"] as? String ?: ""
+                                val totalPoints = (map["Total"] as? Double)?.toInt() ?: 0
+                                // Use classIndex + 1 as the class number (1=Gold, 2=Silver, etc.)
+                                val classNumber = classIndex + 1
+
+                                StandingEntry(
+                                    position = position,
+                                    driverName = displayName,
+                                    points = totalPoints,
+                                    className = classNumber.toString()
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e("MainActivity", "Error parsing standing entry: $entry", e)
+                                null
+                            }
+                        }
+                    }
+                    android.util.Log.d("MainActivity", "Fetched ${standings.size} standings entries")
+                    android.util.Log.d("MainActivity", "Sample standings: ${standings.take(3)}")
+                    android.util.Log.d("MainActivity", "Classes: ${classes.map { "${it.name}:${it.id}" }}")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch standings: ${standingsResponse.code()}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching standings", e)
+            } finally {
+                isRefreshing = false
+            }
         }
     }
 
@@ -256,6 +318,13 @@ fun IRaceResultsApp() {
         return
     }
 
+    // Fetch standings data when setup is complete
+    LaunchedEffect(userPreferences!!.leagueId) {
+        if (userPreferences!!.leagueId.isNotEmpty()) {
+            fetchStandingsData(userPreferences!!.leagueId)
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -346,8 +415,10 @@ fun IRaceResultsApp() {
                                     className = userPreferences!!.driverClass,
                                     custId = userPreferences!!.custId.toIntOrNull() ?: 0
                                 ),
-                                classes = getSampleClasses(),
-                                standings = getSampleStandings()
+                                classes = classes,
+                                standings = standings,
+                                isRefreshing = isRefreshing,
+                                onRefresh = { fetchStandingsData(userPreferences!!.leagueId) }
                             )
                         } else {
                             DrawerContent(

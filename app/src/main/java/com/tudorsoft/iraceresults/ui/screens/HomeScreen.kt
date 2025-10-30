@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,43 +23,65 @@ import com.tudorsoft.iraceresults.ui.theme.GoldButton
 import com.tudorsoft.iraceresults.ui.theme.SilverButton
 import com.tudorsoft.iraceresults.ui.theme.UnclassifiedButton
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     league: League = League("SAMPLE", "Sample Racing League"),
     driver: Driver = Driver("John Doe", "GT3"),
     classes: List<RacingClass> = emptyList(),
-    standings: List<StandingEntry> = emptyList()
+    standings: List<StandingEntry> = emptyList(),
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {}
 ) {
     var selectedClass by remember { mutableStateOf(classes.firstOrNull()?.id ?: "") }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Information Section
-        InformationSection(
-            league = league,
-            driver = driver
-        )
+    // Update selected class when classes change
+    LaunchedEffect(classes) {
+        if (selectedClass.isEmpty() && classes.isNotEmpty()) {
+            selectedClass = classes.firstOrNull()?.id ?: ""
+            android.util.Log.d("HomeScreen", "Selected class: $selectedClass")
+            android.util.Log.d("HomeScreen", "Available classes: ${classes.map { "${it.name}:${it.id}" }}")
+        }
+    }
 
-        // Class Selection
-        if (classes.isNotEmpty()) {
-            ClassSelectionRow(
-                classes = classes,
-                selectedClass = selectedClass,
-                onClassSelected = { selectedClass = it }
+    // Log filtering
+    val filteredStandings = standings.filter {
+        selectedClass.isEmpty() || it.className == selectedClass
+    }
+    android.util.Log.d("HomeScreen", "Total standings: ${standings.size}, Filtered: ${filteredStandings.size}, Selected class: $selectedClass")
+
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Information Section
+            InformationSection(
+                league = league,
+                driver = driver
+            )
+
+            // Class Selection
+            if (classes.isNotEmpty()) {
+                ClassSelectionRow(
+                    classes = classes,
+                    selectedClass = selectedClass,
+                    onClassSelected = { selectedClass = it }
+                )
+            }
+
+            // Standings Table
+            StandingsTable(
+                standings = filteredStandings
             )
         }
-
-        // Standings Table
-        StandingsTable(
-            standings = standings.filter {
-                selectedClass.isEmpty() || it.className == selectedClass
-            }
-        )
     }
 }
 

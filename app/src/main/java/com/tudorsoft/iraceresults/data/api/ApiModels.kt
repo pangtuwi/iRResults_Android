@@ -24,3 +24,16 @@ data class ClassResponse(
     @SerializedName("classname")
     val className: String
 )
+
+data class ClassTotalsResponse(
+    @SerializedName("position")
+    val position: Int,
+    @SerializedName("display_name")
+    val displayName: String,
+    @SerializedName("total_points")
+    val totalPoints: Int,
+    @SerializedName("classnumber")
+    val classNumber: Int,
+    @SerializedName("classname")
+    val className: String?
+)
