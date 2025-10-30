@@ -7,8 +7,8 @@ data class DriverResponse(
     val custId: Int,
     @SerializedName("display_name")
     val displayName: String,
-    @SerializedName("class")
-    val driverClass: String?
+    @SerializedName("classnumber")
+    val driverClass: Int?
 )
 
 data class LeagueNameResponse(
@@ -16,4 +16,11 @@ data class LeagueNameResponse(
     val leagueId: String,
     @SerializedName("leaguename")
     val leagueName: String
+)
+
+data class ClassResponse(
+    @SerializedName("classnumber")
+    val classNumber: Int,
+    @SerializedName("classname")
+    val className: String
 )

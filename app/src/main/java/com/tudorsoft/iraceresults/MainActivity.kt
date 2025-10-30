@@ -45,6 +45,7 @@ import com.tudorsoft.iraceresults.ui.navigation.AppDrawer
 import com.tudorsoft.iraceresults.ui.navigation.DrawerMenuItem
 import com.tudorsoft.iraceresults.ui.screens.HomeScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
+import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
 import com.tudorsoft.iraceresults.ui.theme.AddcnFontFamily
 import com.tudorsoft.iraceresults.ui.theme.IRaceResultsTheme
 import kotlinx.coroutines.flow.first
@@ -80,7 +81,84 @@ fun IRaceResultsApp() {
 
     // Load user preferences on startup
     LaunchedEffect(Unit) {
-        userPreferences = preferencesManager.userPreferencesFlow.first()
+        val prefs = preferencesManager.userPreferencesFlow.first()
+
+        // Migration: If setup is complete but leagueName or className need updating
+        if (prefs.isSetupComplete && prefs.leagueId.isNotEmpty()) {
+            val needsLeagueName = prefs.leagueName.isEmpty()
+            // Check if driverClass is empty or appears to be a number (class number instead of name)
+            // Also check if it's a single digit or short string that could be a class number
+            val needsClassName = prefs.driverClass.isEmpty() ||
+                                 prefs.driverClass.toIntOrNull() != null ||
+                                 prefs.driverClass.length <= 2
+
+            if (needsLeagueName || needsClassName) {
+                try {
+                    var leagueName = prefs.leagueName
+                    var className = prefs.driverClass
+
+                    // Fetch league name if needed
+                    if (needsLeagueName) {
+                        val leagueNameResponse = RetrofitClient.api.getLeagueName(prefs.leagueId)
+                        if (leagueNameResponse.isSuccessful) {
+                            leagueName = leagueNameResponse.body()?.leagueName ?: prefs.leagueId
+                        }
+                    }
+
+                    // Fetch class name if needed
+                    if (needsClassName && prefs.custId.isNotEmpty()) {
+                        // Re-fetch driver data to get the current class number
+                        val driversResponse = RetrofitClient.api.getDrivers(prefs.leagueId)
+                        if (driversResponse.isSuccessful) {
+                            val drivers = driversResponse.body()
+                            val driver = drivers?.find { it.custId.toString() == prefs.custId }
+                            val classNumber = driver?.driverClass
+
+                            android.util.Log.d("MainActivity", "Migration - Driver class number: $classNumber")
+
+                            if (classNumber != null) {
+                                // Now fetch classes and look up the name
+                                val classesResponse = RetrofitClient.api.getClasses(prefs.leagueId)
+                                if (classesResponse.isSuccessful) {
+                                    val classes = classesResponse.body()
+                                    val matchedClass = classes?.find { it.classNumber == classNumber }
+                                    className = matchedClass?.className ?: classNumber.toString()
+
+                                    android.util.Log.d("MainActivity", "Migration - Available classes: ${classes?.map { "${it.classNumber}:${it.className}" }}")
+                                    android.util.Log.d("MainActivity", "Migration - Matched class name: $className")
+                                }
+                            }
+                        }
+                    }
+
+                    // Save updated info
+                    preferencesManager.saveUserInfo(
+                        leagueId = prefs.leagueId,
+                        leagueName = leagueName,
+                        custId = prefs.custId,
+                        displayName = prefs.displayName,
+                        driverClass = className
+                    )
+                    userPreferences = preferencesManager.userPreferencesFlow.first()
+                } catch (e: Exception) {
+                    // If migration fails, just use existing preferences
+                    userPreferences = prefs
+                }
+            } else {
+                userPreferences = prefs
+            }
+        } else {
+            userPreferences = prefs
+        }
+    }
+
+    // Handle reset setup
+    fun handleResetSetup() {
+        scope.launch {
+            preferencesManager.clearUserInfo()
+            userPreferences = preferencesManager.userPreferencesFlow.first()
+            currentDrawerRoute = ""
+        }
     }
 
     // Handle setup completion
@@ -91,19 +169,52 @@ fun IRaceResultsApp() {
         scope.launch {
             try {
                 // Call API to get drivers list
-                val response = RetrofitClient.api.getDrivers(leagueId)
+                val driversResponse = RetrofitClient.api.getDrivers(leagueId)
 
-                if (response.isSuccessful) {
-                    val drivers = response.body()
+                if (driversResponse.isSuccessful) {
+                    val drivers = driversResponse.body()
                     val driver = drivers?.find { it.custId.toString() == custId }
 
                     if (driver != null) {
+                        // Call API to get league name
+                        val leagueNameResponse = RetrofitClient.api.getLeagueName(leagueId)
+                        val leagueName = if (leagueNameResponse.isSuccessful) {
+                            leagueNameResponse.body()?.leagueName ?: leagueId
+                        } else {
+                            leagueId // Fallback to league ID if API call fails
+                        }
+
+                        // Call API to get classes and find the class name
+                        var className = ""
+                        val driverClassNumber = driver.driverClass
+
+                        if (driverClassNumber != null) {
+                            val classesResponse = RetrofitClient.api.getClasses(leagueId)
+                            if (classesResponse.isSuccessful) {
+                                val classes = classesResponse.body()
+                                // Try to find matching class by classNumber
+                                val matchedClass = classes?.find { it.classNumber == driverClassNumber }
+                                className = matchedClass?.className ?: driverClassNumber.toString()
+
+                                // Log for debugging
+                                android.util.Log.d("MainActivity", "Driver class number: $driverClassNumber")
+                                android.util.Log.d("MainActivity", "Available classes: ${classes?.map { "${it.classNumber}:${it.className}" }}")
+                                android.util.Log.d("MainActivity", "Matched class name: $className")
+                            } else {
+                                className = driverClassNumber.toString()
+                                android.util.Log.e("MainActivity", "Failed to fetch classes: ${classesResponse.code()}")
+                            }
+                        } else {
+                            android.util.Log.w("MainActivity", "Driver class number is null for ${driver.displayName}")
+                        }
+
                         // Save user info
                         preferencesManager.saveUserInfo(
                             leagueId = leagueId,
+                            leagueName = leagueName,
                             custId = custId,
                             displayName = driver.displayName,
-                            driverClass = driver.driverClass ?: ""
+                            driverClass = className
                         )
 
                         // Reload preferences
@@ -228,7 +339,7 @@ fun IRaceResultsApp() {
                                 modifier = Modifier.padding(innerPadding),
                                 league = League(
                                     leagueId = userPreferences!!.leagueId,
-                                    leagueName = userPreferences!!.leagueId  // TODO: Fetch actual league name
+                                    leagueName = userPreferences!!.leagueName
                                 ),
                                 driver = Driver(
                                     displayName = userPreferences!!.displayName,
@@ -241,7 +352,8 @@ fun IRaceResultsApp() {
                         } else {
                             DrawerContent(
                                 route = currentDrawerRoute,
-                                modifier = Modifier.padding(innerPadding)
+                                modifier = Modifier.padding(innerPadding),
+                                onResetSetup = ::handleResetSetup
                             )
                         }
                     }
@@ -283,40 +395,50 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 fun DrawerContent(
     route: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onResetSetup: () -> Unit = {}
 ) {
-    val title = when (route) {
-        "tables" -> "Tables"
-        "rounds" -> "Rounds"
-        "penalties" -> "Penalties"
-        "my_penalties" -> "My Penalties"
-        "licence_points" -> "Licence Points"
-        "teams" -> "Teams"
-        "settings" -> "Settings"
-        "about" -> "About"
-        else -> "Unknown"
-    }
+    when (route) {
+        "settings" -> {
+            SettingsScreen(
+                modifier = modifier,
+                onResetSetup = onResetSetup
+            )
+        }
+        else -> {
+            val title = when (route) {
+                "tables" -> "Tables"
+                "rounds" -> "Rounds"
+                "penalties" -> "Penalties"
+                "my_penalties" -> "My Penalties"
+                "licence_points" -> "Licence Points"
+                "teams" -> "Teams"
+                "about" -> "About"
+                else -> "Unknown"
+            }
 
-    // Placeholder content for each drawer screen
-    androidx.compose.foundation.layout.Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        androidx.compose.foundation.layout.Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-            Text(
-                text = "Content coming soon...",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
+            // Placeholder content for each drawer screen
+            androidx.compose.foundation.layout.Box(
+                modifier = modifier.fillMaxSize(),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                    Text(
+                        text = "Content coming soon...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                }
+            }
         }
     }
 }

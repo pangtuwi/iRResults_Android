@@ -17,6 +17,7 @@ class PreferencesManager(private val context: Context) {
     companion object {
         private val SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
         private val LEAGUE_ID = stringPreferencesKey("league_id")
+        private val LEAGUE_NAME = stringPreferencesKey("league_name")
         private val CUST_ID = stringPreferencesKey("cust_id")
         private val DISPLAY_NAME = stringPreferencesKey("display_name")
         private val DRIVER_CLASS = stringPreferencesKey("driver_class")
@@ -26,6 +27,7 @@ class PreferencesManager(private val context: Context) {
         UserPreferences(
             isSetupComplete = preferences[SETUP_COMPLETE] ?: false,
             leagueId = preferences[LEAGUE_ID] ?: "",
+            leagueName = preferences[LEAGUE_NAME] ?: "",
             custId = preferences[CUST_ID] ?: "",
             displayName = preferences[DISPLAY_NAME] ?: "",
             driverClass = preferences[DRIVER_CLASS] ?: ""
@@ -34,6 +36,7 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun saveUserInfo(
         leagueId: String,
+        leagueName: String,
         custId: String,
         displayName: String,
         driverClass: String
@@ -41,6 +44,7 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences[SETUP_COMPLETE] = true
             preferences[LEAGUE_ID] = leagueId
+            preferences[LEAGUE_NAME] = leagueName
             preferences[CUST_ID] = custId
             preferences[DISPLAY_NAME] = displayName
             preferences[DRIVER_CLASS] = driverClass

@@ -123,7 +123,7 @@ fun InformationSection(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = driver.className,
+                        text = driver.className.ifEmpty { "N/A" },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface

@@ -15,4 +15,9 @@ interface IRaceResultsApi {
     suspend fun getLeagueName(
         @Path("leagueid") leagueId: String
     ): Response<LeagueNameResponse>
+
+    @GET("{leagueid}/classes")
+    suspend fun getClasses(
+        @Path("leagueid") leagueId: String
+    ): Response<List<ClassResponse>>
 }
