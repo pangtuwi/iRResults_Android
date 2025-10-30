@@ -37,3 +37,18 @@ data class ClassTotalsResponse(
     @SerializedName("classname")
     val className: String?
 )
+
+data class TeamStandingResponse(
+    @SerializedName("Pos")
+    val position: Int?,
+    @SerializedName("Team Name")
+    val teamName: String?,
+    @SerializedName("Driver 1")
+    val driver1: String?,
+    @SerializedName("Driver 2")
+    val driver2: String?,
+    @SerializedName("Driver 3")
+    val driver3: String?,
+    @SerializedName("Total")
+    val total: Int?
+)

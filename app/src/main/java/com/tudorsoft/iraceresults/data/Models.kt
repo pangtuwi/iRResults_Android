@@ -22,3 +22,12 @@ data class StandingEntry(
     val points: Int,
     val className: String = ""
 )
+
+data class TeamStanding(
+    val position: Int,
+    val teamName: String,
+    val driver1: String,
+    val driver2: String,
+    val driver3: String,
+    val totalPoints: Int
+)

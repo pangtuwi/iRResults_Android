@@ -38,6 +38,7 @@ import com.tudorsoft.iraceresults.data.Driver
 import com.tudorsoft.iraceresults.data.League
 import com.tudorsoft.iraceresults.data.RacingClass
 import com.tudorsoft.iraceresults.data.StandingEntry
+import com.tudorsoft.iraceresults.data.TeamStanding
 import com.tudorsoft.iraceresults.data.api.RetrofitClient
 import com.tudorsoft.iraceresults.data.preferences.PreferencesManager
 import com.tudorsoft.iraceresults.data.preferences.UserPreferences
@@ -46,6 +47,7 @@ import com.tudorsoft.iraceresults.ui.navigation.DrawerMenuItem
 import com.tudorsoft.iraceresults.ui.screens.HomeScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
 import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
+import com.tudorsoft.iraceresults.ui.screens.TeamStandingsScreen
 import com.tudorsoft.iraceresults.ui.theme.AddcnFontFamily
 import com.tudorsoft.iraceresults.ui.theme.IRaceResultsTheme
 import kotlinx.coroutines.flow.first
@@ -76,7 +78,9 @@ fun IRaceResultsApp() {
     var setupErrorMessage by remember { mutableStateOf<String?>(null) }
     var standings by remember { mutableStateOf<List<StandingEntry>>(emptyList()) }
     var classes by remember { mutableStateOf<List<RacingClass>>(emptyList()) }
+    var teamStandings by remember { mutableStateOf<List<TeamStanding>>(emptyList()) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var isRefreshingTeams by remember { mutableStateOf(false) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -161,6 +165,36 @@ fun IRaceResultsApp() {
             preferencesManager.clearUserInfo()
             userPreferences = preferencesManager.userPreferencesFlow.first()
             currentDrawerRoute = ""
+        }
+    }
+
+    // Fetch team standings data
+    fun fetchTeamStandings(leagueId: String) {
+        scope.launch {
+            isRefreshingTeams = true
+            try {
+                val response = RetrofitClient.api.getTeamStandings(leagueId)
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    teamStandings = data.mapNotNull { team ->
+                        TeamStanding(
+                            position = team.position ?: 0,
+                            teamName = team.teamName ?: "",
+                            driver1 = team.driver1 ?: "",
+                            driver2 = team.driver2 ?: "",
+                            driver3 = team.driver3 ?: "",
+                            totalPoints = team.total ?: 0
+                        )
+                    }
+                    android.util.Log.d("MainActivity", "Fetched ${teamStandings.size} team standings")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch team standings: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching team standings", e)
+            } finally {
+                isRefreshingTeams = false
+            }
         }
     }
 
@@ -322,6 +356,7 @@ fun IRaceResultsApp() {
     LaunchedEffect(userPreferences!!.leagueId) {
         if (userPreferences!!.leagueId.isNotEmpty()) {
             fetchStandingsData(userPreferences!!.leagueId)
+            fetchTeamStandings(userPreferences!!.leagueId)
         }
     }
 
@@ -424,7 +459,10 @@ fun IRaceResultsApp() {
                             DrawerContent(
                                 route = currentDrawerRoute,
                                 modifier = Modifier.padding(innerPadding),
-                                onResetSetup = ::handleResetSetup
+                                onResetSetup = ::handleResetSetup,
+                                teamStandings = teamStandings,
+                                isRefreshingTeams = isRefreshingTeams,
+                                onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) }
                             )
                         }
                     }
@@ -467,9 +505,20 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 fun DrawerContent(
     route: String,
     modifier: Modifier = Modifier,
-    onResetSetup: () -> Unit = {}
+    onResetSetup: () -> Unit = {},
+    teamStandings: List<TeamStanding> = emptyList(),
+    isRefreshingTeams: Boolean = false,
+    onRefreshTeams: () -> Unit = {}
 ) {
     when (route) {
+        "teams" -> {
+            TeamStandingsScreen(
+                modifier = modifier,
+                teamStandings = teamStandings,
+                isRefreshing = isRefreshingTeams,
+                onRefresh = onRefreshTeams
+            )
+        }
         "settings" -> {
             SettingsScreen(
                 modifier = modifier,
