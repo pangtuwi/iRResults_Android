@@ -3,6 +3,7 @@ package com.tudorsoft.iraceresults.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -15,6 +16,7 @@ sealed class DrawerMenuItem(
     val title: String,
     val icon: ImageVector
 ) {
+    object Tables : DrawerMenuItem("tables", "Tables", Icons.Default.List)
     object Rounds : DrawerMenuItem("rounds", "Rounds", Icons.Outlined.CheckCircle)
     object Penalties : DrawerMenuItem("penalties", "Penalties", Icons.Default.Warning)
     object MyPenalties : DrawerMenuItem("my_penalties", "My Penalties", Icons.Default.Person)
@@ -25,6 +27,7 @@ sealed class DrawerMenuItem(
 
     companion object {
         val items = listOf(
+            Tables,
             Rounds,
             Penalties,
             MyPenalties,

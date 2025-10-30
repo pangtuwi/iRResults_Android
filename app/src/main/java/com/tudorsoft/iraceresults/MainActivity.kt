@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -151,7 +151,12 @@ fun IRaceResultsApp() {
             AppDrawer(
                 currentRoute = currentDrawerRoute,
                 onMenuItemClick = { item ->
-                    currentDrawerRoute = item.route
+                    // If Tables is clicked, clear the drawer route to show home page
+                    if (item.route == "tables") {
+                        currentDrawerRoute = ""
+                    } else {
+                        currentDrawerRoute = item.route
+                    }
                 },
                 onCloseDrawer = {
                     scope.launch {
@@ -173,7 +178,13 @@ fun IRaceResultsApp() {
                         },
                         label = { Text(it.label) },
                         selected = it == currentDestination,
-                        onClick = { currentDestination = it }
+                        onClick = {
+                            currentDestination = it
+                            // Reset drawer route when navigating to Home
+                            if (it == AppDestinations.HOME) {
+                                currentDrawerRoute = ""
+                            }
+                        }
                     )
                 }
             }
@@ -256,7 +267,7 @@ enum class AppDestinations(
     val label: String,
     val icon: ImageVector,
 ) {
-    HOME("Home", Icons.Default.Home),
+    HOME("Tables", Icons.Default.List),
     FAVORITES("Favorites", Icons.Default.Favorite),
     PROFILE("Profile", Icons.Default.AccountBox),
 }
@@ -275,6 +286,7 @@ fun DrawerContent(
     modifier: Modifier = Modifier
 ) {
     val title = when (route) {
+        "tables" -> "Tables"
         "rounds" -> "Rounds"
         "penalties" -> "Penalties"
         "my_penalties" -> "My Penalties"
