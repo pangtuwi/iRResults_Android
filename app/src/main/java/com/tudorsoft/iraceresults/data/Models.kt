@@ -16,11 +16,19 @@ data class RacingClass(
     val id: String
 )
 
+data class RoundPoints(
+    val roundName: String,
+    val points: Int
+)
+
 data class StandingEntry(
     val position: Int,
     val driverName: String,
     val points: Int,
-    val className: String = ""
+    val className: String = "",
+    val roundPoints: List<RoundPoints> = emptyList(),
+    val dropPoints: Int = 0,
+    val penaltyPoints: Int = 0
 )
 
 data class TeamStanding(

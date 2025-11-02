@@ -405,14 +405,62 @@ fun IRaceResultsApp() {
                                 val position = (map["Pos"] as? Double)?.toInt() ?: 0
                                 val displayName = map["Name"] as? String ?: ""
                                 val totalPoints = (map["Total"] as? Double)?.toInt() ?: 0
+                                val dropPoints = (map["Drop"] as? Double)?.toInt() ?: 0
+                                val penaltyPoints = (map["Penalties"] as? Double)?.toInt() ?: 0
                                 // Use classIndex + 1 as the class number (1=Gold, 2=Silver, etc.)
                                 val classNumber = classIndex + 1
+
+                                // Extract round-by-round points
+                                val roundPointsList = mutableListOf<com.tudorsoft.iraceresults.data.RoundPoints>()
+
+                                // Known non-round keys to filter out
+                                val nonRoundKeys = setOf("Pos", "Name", "Total", "Drop", "Penalties", "ID")
+
+                                // Look for track name keys in the map and match them with rounds
+                                map.keys.forEach { key ->
+                                    if (key !in nonRoundKeys) {
+                                        val points = (map[key] as? Double)?.toInt() ?: 0
+
+                                        // Try to find matching round by comparing track names
+                                        // The API uses abbreviated track names (e.g., "RBull" for "Red Bull Ring")
+                                        val matchingRound = rounds.find { round ->
+                                            // Check if the round's track name contains the key or vice versa
+                                            round.trackName.contains(key, ignoreCase = true) ||
+                                            key.contains(round.trackName, ignoreCase = true) ||
+                                            // Also check if key matches start of track name
+                                            round.trackName.startsWith(key, ignoreCase = true)
+                                        }
+
+                                        val roundData = if (matchingRound != null) {
+                                            com.tudorsoft.iraceresults.data.RoundPoints(
+                                                roundName = matchingRound.trackName,
+                                                points = points
+                                            )
+                                        } else {
+                                            // If no match found, use the key as the round name
+                                            com.tudorsoft.iraceresults.data.RoundPoints(
+                                                roundName = key,
+                                                points = points
+                                            )
+                                        }
+
+                                        roundPointsList.add(roundData)
+                                    }
+                                }
+
+                                // Sort by round number if we can find matching rounds
+                                roundPointsList.sortBy { roundPoint ->
+                                    rounds.find { it.trackName == roundPoint.roundName }?.roundNo ?: 999
+                                }
 
                                 StandingEntry(
                                     position = position,
                                     driverName = displayName,
                                     points = totalPoints,
-                                    className = classNumber.toString()
+                                    className = classNumber.toString(),
+                                    roundPoints = roundPointsList,
+                                    dropPoints = dropPoints,
+                                    penaltyPoints = penaltyPoints
                                 )
                             } catch (e: Exception) {
                                 android.util.Log.e("MainActivity", "Error parsing standing entry: $entry", e)
