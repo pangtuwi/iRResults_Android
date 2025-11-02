@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
@@ -97,7 +99,7 @@ fun IRaceResultsApp() {
     var isRefreshingAllPenalties by remember { mutableStateOf(false) }
     var isRefreshingLicencePoints by remember { mutableStateOf(false) }
 
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TABLES) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -624,8 +626,8 @@ fun IRaceResultsApp() {
                         selected = it == currentDestination,
                         onClick = {
                             currentDestination = it
-                            // Reset drawer route when navigating to Home
-                            if (it == AppDestinations.HOME) {
+                            // Reset drawer route when navigating to Tables
+                            if (it == AppDestinations.TABLES) {
                                 currentDrawerRoute = ""
                             }
                         }
@@ -641,7 +643,7 @@ fun IRaceResultsApp() {
                             Text(
                                 text = "iRaceResults",
                                 fontFamily = AddcnFontFamily,
-                                fontSize = 24.sp,
+                                fontSize = 28.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
@@ -666,7 +668,7 @@ fun IRaceResultsApp() {
                 }
             ) { innerPadding ->
                 when (currentDestination) {
-                    AppDestinations.HOME -> {
+                    AppDestinations.TABLES -> {
                         if (currentDrawerRoute.isEmpty()) {
                             HomeScreen(
                                 modifier = Modifier.padding(innerPadding),
@@ -709,16 +711,37 @@ fun IRaceResultsApp() {
                             )
                         }
                     }
-                    AppDestinations.FAVORITES -> {
-                        Greeting(
-                            name = "Favorites",
-                            modifier = Modifier.padding(innerPadding)
+                    AppDestinations.ROUNDS -> {
+                        RoundsScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            rounds = rounds,
+                            isRefreshing = isRefreshingRounds,
+                            onRefresh = { fetchRounds(userPreferences!!.leagueId) }
                         )
                     }
-                    AppDestinations.PROFILE -> {
-                        Greeting(
-                            name = "Profile",
-                            modifier = Modifier.padding(innerPadding)
+                    AppDestinations.TEAMS -> {
+                        TeamStandingsScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            teamStandings = teamStandings,
+                            isRefreshing = isRefreshingTeams,
+                            onRefresh = { fetchTeamStandings(userPreferences!!.leagueId) }
+                        )
+                    }
+                    AppDestinations.PENALTIES -> {
+                        AllPenaltiesScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            penalties = allPenalties,
+                            isRefreshing = isRefreshingAllPenalties,
+                            onRefresh = { fetchAllPenalties(userPreferences!!.leagueId) }
+                        )
+                    }
+                    AppDestinations.LICENCE -> {
+                        LicencePointsScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            licencePoints = licencePoints,
+                            classes = classes,
+                            isRefreshing = isRefreshingLicencePoints,
+                            onRefresh = { fetchLicencePoints(userPreferences!!.leagueId) }
                         )
                     }
                 }
@@ -731,9 +754,11 @@ enum class AppDestinations(
     val label: String,
     val icon: ImageVector,
 ) {
-    HOME("Tables", Icons.Default.List),
-    FAVORITES("Favorites", Icons.Default.Favorite),
-    PROFILE("Profile", Icons.Default.AccountBox),
+    TABLES("Tables", Icons.AutoMirrored.Filled.List),
+    ROUNDS("Rounds", Icons.Default.DateRange),
+    TEAMS("Teams", Icons.Default.Person),
+    PENALTIES("Penalties", Icons.Default.Warning),
+    LICENCE("Licence", Icons.Default.Star),
 }
 
 @Composable

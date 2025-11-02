@@ -176,7 +176,7 @@ fun ClassSelectionRow(
     Column(modifier = modifier) {
         Text(
             text = "League Standings",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 12.dp)

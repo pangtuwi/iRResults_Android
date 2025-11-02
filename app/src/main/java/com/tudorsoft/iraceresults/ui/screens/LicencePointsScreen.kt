@@ -58,7 +58,7 @@ fun LicencePointsScreen(
             // Title
             Text(
                 text = "Licence Points",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )

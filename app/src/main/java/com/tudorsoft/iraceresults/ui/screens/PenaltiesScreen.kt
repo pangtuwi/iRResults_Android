@@ -57,17 +57,9 @@ fun PenaltiesScreen(
             // Header with title
             Text(
                 text = "My Penalties",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
-            )
-
-            // Filter by Round section
-            Text(
-                text = "Filter by Round",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
 
             // Round filter chips

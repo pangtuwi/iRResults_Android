@@ -34,7 +34,7 @@ fun TeamStandingsScreen(
         ) {
             Text(
                 text = "Team Standings",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )

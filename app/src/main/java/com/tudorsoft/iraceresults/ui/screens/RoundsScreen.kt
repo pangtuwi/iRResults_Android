@@ -10,6 +10,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tudorsoft.iraceresults.data.Round
@@ -38,7 +39,7 @@ fun RoundsScreen(
         ) {
             Text(
                 text = "Rounds",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -74,10 +75,28 @@ fun RoundCard(
     round: Round,
     modifier: Modifier = Modifier
 ) {
+    // Check if round is completed (start time is in the past)
+    val isCompleted = remember(round.startTime) {
+        try {
+            val roundTime = ZonedDateTime.parse(round.startTime)
+            val now = ZonedDateTime.now()
+            roundTime.isBefore(now)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Use light grey for incomplete rounds, normal surface color for completed rounds
+    val backgroundColor = if (isCompleted) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        Color.LightGray.copy(alpha = 0.3f)
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = backgroundColor
         ),
         shape = MaterialTheme.shapes.large
     ) {
