@@ -30,4 +30,14 @@ interface IRaceResultsApi {
     suspend fun getTeamStandings(
         @Path("leagueid") leagueId: String
     ): Response<List<TeamStandingResponse>>
+
+    @GET("{leagueid}/rounds")
+    suspend fun getRounds(
+        @Path("leagueid") leagueId: String
+    ): Response<List<RoundResponse>>
+
+    @GET("{leagueid}/penaltiesjson")
+    suspend fun getPenalties(
+        @Path("leagueid") leagueId: String
+    ): Response<List<PenaltyResponse>>
 }

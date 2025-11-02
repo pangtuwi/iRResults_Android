@@ -36,7 +36,9 @@ import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.sp
 import com.tudorsoft.iraceresults.data.Driver
 import com.tudorsoft.iraceresults.data.League
+import com.tudorsoft.iraceresults.data.Penalty
 import com.tudorsoft.iraceresults.data.RacingClass
+import com.tudorsoft.iraceresults.data.Round
 import com.tudorsoft.iraceresults.data.StandingEntry
 import com.tudorsoft.iraceresults.data.TeamStanding
 import com.tudorsoft.iraceresults.data.api.RetrofitClient
@@ -44,7 +46,10 @@ import com.tudorsoft.iraceresults.data.preferences.PreferencesManager
 import com.tudorsoft.iraceresults.data.preferences.UserPreferences
 import com.tudorsoft.iraceresults.ui.navigation.AppDrawer
 import com.tudorsoft.iraceresults.ui.navigation.DrawerMenuItem
+import com.tudorsoft.iraceresults.ui.screens.AllPenaltiesScreen
 import com.tudorsoft.iraceresults.ui.screens.HomeScreen
+import com.tudorsoft.iraceresults.ui.screens.PenaltiesScreen
+import com.tudorsoft.iraceresults.ui.screens.RoundsScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
 import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
 import com.tudorsoft.iraceresults.ui.screens.TeamStandingsScreen
@@ -79,8 +84,14 @@ fun IRaceResultsApp() {
     var standings by remember { mutableStateOf<List<StandingEntry>>(emptyList()) }
     var classes by remember { mutableStateOf<List<RacingClass>>(emptyList()) }
     var teamStandings by remember { mutableStateOf<List<TeamStanding>>(emptyList()) }
+    var rounds by remember { mutableStateOf<List<Round>>(emptyList()) }
+    var penalties by remember { mutableStateOf<List<Penalty>>(emptyList()) }
+    var allPenalties by remember { mutableStateOf<List<Penalty>>(emptyList()) }
     var isRefreshing by remember { mutableStateOf(false) }
     var isRefreshingTeams by remember { mutableStateOf(false) }
+    var isRefreshingRounds by remember { mutableStateOf(false) }
+    var isRefreshingPenalties by remember { mutableStateOf(false) }
+    var isRefreshingAllPenalties by remember { mutableStateOf(false) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -194,6 +205,117 @@ fun IRaceResultsApp() {
                 android.util.Log.e("MainActivity", "Error fetching team standings", e)
             } finally {
                 isRefreshingTeams = false
+            }
+        }
+    }
+
+    // Fetch rounds data
+    fun fetchRounds(leagueId: String) {
+        scope.launch {
+            isRefreshingRounds = true
+            try {
+                val response = RetrofitClient.api.getRounds(leagueId)
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    rounds = data.map { roundResponse ->
+                        Round(
+                            roundNo = roundResponse.roundNo,
+                            trackName = roundResponse.trackName,
+                            startTime = roundResponse.startTime
+                        )
+                    }
+                    android.util.Log.d("MainActivity", "Fetched ${rounds.size} rounds")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch rounds: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching rounds", e)
+            } finally {
+                isRefreshingRounds = false
+            }
+        }
+    }
+
+    // Fetch penalties data (for current user only)
+    fun fetchPenalties(leagueId: String, custId: String) {
+        scope.launch {
+            isRefreshingPenalties = true
+            try {
+                val response = RetrofitClient.api.getPenalties(leagueId)
+                android.util.Log.d("MainActivity", "Penalties response code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    val userCustId = custId.toIntOrNull() ?: 0
+
+                    // Filter penalties for the current user only, handling null values
+                    penalties = data
+                        .filter { it.custId == userCustId }
+                        .map { penaltyResponse ->
+                            Penalty(
+                                protestId = penaltyResponse.protestId,
+                                roundName = penaltyResponse.roundName,
+                                roundNo = penaltyResponse.roundNo,
+                                scoreEvent = penaltyResponse.scoreEvent ?: "",
+                                driverName = penaltyResponse.displayName,
+                                stewardsDecision = penaltyResponse.stewardsDecision
+                            )
+                        }
+                    android.util.Log.d("MainActivity", "Fetched ${penalties.size} penalties for user $custId (out of ${data.size} total)")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch penalties: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("MainActivity", "Error body: $errorBody")
+                }
+            } catch (e: com.google.gson.JsonSyntaxException) {
+                android.util.Log.e("MainActivity", "JSON parsing error for penalties - API may have returned non-JSON response", e)
+                // Keep penalties empty on error
+                penalties = emptyList()
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching penalties", e)
+                penalties = emptyList()
+            } finally {
+                isRefreshingPenalties = false
+            }
+        }
+    }
+
+    // Fetch all penalties data (for all drivers)
+    fun fetchAllPenalties(leagueId: String) {
+        scope.launch {
+            isRefreshingAllPenalties = true
+            try {
+                val response = RetrofitClient.api.getPenalties(leagueId)
+                android.util.Log.d("MainActivity", "All penalties response code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+
+                    // Map all penalties without filtering by user, handling null values
+                    allPenalties = data.map { penaltyResponse ->
+                        Penalty(
+                            protestId = penaltyResponse.protestId,
+                            roundName = penaltyResponse.roundName,
+                            roundNo = penaltyResponse.roundNo,
+                            scoreEvent = penaltyResponse.scoreEvent ?: "",
+                            driverName = penaltyResponse.displayName,
+                            stewardsDecision = penaltyResponse.stewardsDecision
+                        )
+                    }
+                    android.util.Log.d("MainActivity", "Fetched ${allPenalties.size} total penalties")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch all penalties: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("MainActivity", "Error body: $errorBody")
+                }
+            } catch (e: com.google.gson.JsonSyntaxException) {
+                android.util.Log.e("MainActivity", "JSON parsing error for all penalties - API may have returned non-JSON response", e)
+                allPenalties = emptyList()
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching all penalties", e)
+                allPenalties = emptyList()
+            } finally {
+                isRefreshingAllPenalties = false
             }
         }
     }
@@ -357,6 +479,9 @@ fun IRaceResultsApp() {
         if (userPreferences!!.leagueId.isNotEmpty()) {
             fetchStandingsData(userPreferences!!.leagueId)
             fetchTeamStandings(userPreferences!!.leagueId)
+            fetchRounds(userPreferences!!.leagueId)
+            fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId)
+            fetchAllPenalties(userPreferences!!.leagueId)
         }
     }
 
@@ -462,7 +587,17 @@ fun IRaceResultsApp() {
                                 onResetSetup = ::handleResetSetup,
                                 teamStandings = teamStandings,
                                 isRefreshingTeams = isRefreshingTeams,
-                                onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) }
+                                onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) },
+                                rounds = rounds,
+                                isRefreshingRounds = isRefreshingRounds,
+                                onRefreshRounds = { fetchRounds(userPreferences!!.leagueId) },
+                                penalties = penalties,
+                                isRefreshingPenalties = isRefreshingPenalties,
+                                onRefreshPenalties = { fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId) },
+                                allPenalties = allPenalties,
+                                isRefreshingAllPenalties = isRefreshingAllPenalties,
+                                onRefreshAllPenalties = { fetchAllPenalties(userPreferences!!.leagueId) },
+                                onClose = { currentDrawerRoute = "" }
                             )
                         }
                     }
@@ -508,9 +643,44 @@ fun DrawerContent(
     onResetSetup: () -> Unit = {},
     teamStandings: List<TeamStanding> = emptyList(),
     isRefreshingTeams: Boolean = false,
-    onRefreshTeams: () -> Unit = {}
+    onRefreshTeams: () -> Unit = {},
+    rounds: List<Round> = emptyList(),
+    isRefreshingRounds: Boolean = false,
+    onRefreshRounds: () -> Unit = {},
+    penalties: List<Penalty> = emptyList(),
+    isRefreshingPenalties: Boolean = false,
+    onRefreshPenalties: () -> Unit = {},
+    allPenalties: List<Penalty> = emptyList(),
+    isRefreshingAllPenalties: Boolean = false,
+    onRefreshAllPenalties: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     when (route) {
+        "rounds" -> {
+            RoundsScreen(
+                modifier = modifier,
+                rounds = rounds,
+                isRefreshing = isRefreshingRounds,
+                onRefresh = onRefreshRounds
+            )
+        }
+        "penalties" -> {
+            AllPenaltiesScreen(
+                modifier = modifier,
+                penalties = allPenalties,
+                isRefreshing = isRefreshingAllPenalties,
+                onRefresh = onRefreshAllPenalties
+            )
+        }
+        "my_penalties" -> {
+            PenaltiesScreen(
+                modifier = modifier,
+                penalties = penalties,
+                isRefreshing = isRefreshingPenalties,
+                onRefresh = onRefreshPenalties,
+                onClose = onClose
+            )
+        }
         "teams" -> {
             TeamStandingsScreen(
                 modifier = modifier,
