@@ -110,3 +110,12 @@ data class PenaltyResponse(
     @SerializedName("session_no")
     val sessionNo: Int
 )
+
+data class LicencePointsResponse(
+    @SerializedName("display_name")
+    val displayName: String,
+    @SerializedName("licence_points")
+    val licencePoints: Int,
+    @SerializedName("classnumber")
+    val classNumber: Int?
+)

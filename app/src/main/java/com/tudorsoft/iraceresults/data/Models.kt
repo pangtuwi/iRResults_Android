@@ -46,3 +46,10 @@ data class Penalty(
     val driverName: String,
     val stewardsDecision: String
 )
+
+data class LicencePointsEntry(
+    val position: Int,
+    val driverName: String,
+    val licencePoints: Int,
+    val className: String = ""
+)

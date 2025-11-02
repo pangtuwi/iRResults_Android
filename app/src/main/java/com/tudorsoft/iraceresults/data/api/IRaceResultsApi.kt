@@ -40,4 +40,9 @@ interface IRaceResultsApi {
     suspend fun getPenalties(
         @Path("leagueid") leagueId: String
     ): Response<List<PenaltyResponse>>
+
+    @GET("{leagueid}/licencepoints")
+    suspend fun getLicencePoints(
+        @Path("leagueid") leagueId: String
+    ): Response<List<List<Any>>>
 }

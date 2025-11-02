@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.sp
 import com.tudorsoft.iraceresults.data.Driver
 import com.tudorsoft.iraceresults.data.League
+import com.tudorsoft.iraceresults.data.LicencePointsEntry
 import com.tudorsoft.iraceresults.data.Penalty
 import com.tudorsoft.iraceresults.data.RacingClass
 import com.tudorsoft.iraceresults.data.Round
@@ -48,6 +49,7 @@ import com.tudorsoft.iraceresults.ui.navigation.AppDrawer
 import com.tudorsoft.iraceresults.ui.navigation.DrawerMenuItem
 import com.tudorsoft.iraceresults.ui.screens.AllPenaltiesScreen
 import com.tudorsoft.iraceresults.ui.screens.HomeScreen
+import com.tudorsoft.iraceresults.ui.screens.LicencePointsScreen
 import com.tudorsoft.iraceresults.ui.screens.PenaltiesScreen
 import com.tudorsoft.iraceresults.ui.screens.RoundsScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
@@ -87,11 +89,13 @@ fun IRaceResultsApp() {
     var rounds by remember { mutableStateOf<List<Round>>(emptyList()) }
     var penalties by remember { mutableStateOf<List<Penalty>>(emptyList()) }
     var allPenalties by remember { mutableStateOf<List<Penalty>>(emptyList()) }
+    var licencePoints by remember { mutableStateOf<List<LicencePointsEntry>>(emptyList()) }
     var isRefreshing by remember { mutableStateOf(false) }
     var isRefreshingTeams by remember { mutableStateOf(false) }
     var isRefreshingRounds by remember { mutableStateOf(false) }
     var isRefreshingPenalties by remember { mutableStateOf(false) }
     var isRefreshingAllPenalties by remember { mutableStateOf(false) }
+    var isRefreshingLicencePoints by remember { mutableStateOf(false) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -320,6 +324,57 @@ fun IRaceResultsApp() {
         }
     }
 
+    // Fetch licence points data
+    fun fetchLicencePoints(leagueId: String) {
+        scope.launch {
+            isRefreshingLicencePoints = true
+            try {
+                val response = RetrofitClient.api.getLicencePoints(leagueId)
+                android.util.Log.d("MainActivity", "Licence points response code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    android.util.Log.d("MainActivity", "Licence points data structure: ${data.size} class groups")
+
+                    // Parse nested array structure similar to classtotals
+                    licencePoints = data.flatMapIndexed { classIndex, classGroup ->
+                        classGroup.mapNotNull { entry ->
+                            try {
+                                @Suppress("UNCHECKED_CAST")
+                                val map = entry as? Map<String, Any> ?: return@mapNotNull null
+
+                                val position = (map["Pos"] as? Double)?.toInt() ?: 0
+                                val displayName = map["Name"] as? String ?: ""
+                                val licencePointsValue = (map["Total"] as? Double)?.toInt() ?: 0
+                                val classNumber = classIndex + 1
+
+                                LicencePointsEntry(
+                                    position = position,
+                                    driverName = displayName,
+                                    licencePoints = licencePointsValue,
+                                    className = classNumber.toString()
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e("MainActivity", "Error parsing licence points entry: $entry", e)
+                                null
+                            }
+                        }
+                    }
+                    android.util.Log.d("MainActivity", "Fetched ${licencePoints.size} licence points entries")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch licence points: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("MainActivity", "Error body: $errorBody")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching licence points", e)
+                licencePoints = emptyList()
+            } finally {
+                isRefreshingLicencePoints = false
+            }
+        }
+    }
+
     // Fetch standings data
     fun fetchStandingsData(leagueId: String) {
         scope.launch {
@@ -482,6 +537,7 @@ fun IRaceResultsApp() {
             fetchRounds(userPreferences!!.leagueId)
             fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId)
             fetchAllPenalties(userPreferences!!.leagueId)
+            fetchLicencePoints(userPreferences!!.leagueId)
         }
     }
 
@@ -597,6 +653,10 @@ fun IRaceResultsApp() {
                                 allPenalties = allPenalties,
                                 isRefreshingAllPenalties = isRefreshingAllPenalties,
                                 onRefreshAllPenalties = { fetchAllPenalties(userPreferences!!.leagueId) },
+                                licencePoints = licencePoints,
+                                classes = classes,
+                                isRefreshingLicencePoints = isRefreshingLicencePoints,
+                                onRefreshLicencePoints = { fetchLicencePoints(userPreferences!!.leagueId) },
                                 onClose = { currentDrawerRoute = "" }
                             )
                         }
@@ -653,6 +713,10 @@ fun DrawerContent(
     allPenalties: List<Penalty> = emptyList(),
     isRefreshingAllPenalties: Boolean = false,
     onRefreshAllPenalties: () -> Unit = {},
+    licencePoints: List<LicencePointsEntry> = emptyList(),
+    classes: List<RacingClass> = emptyList(),
+    isRefreshingLicencePoints: Boolean = false,
+    onRefreshLicencePoints: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
     when (route) {
@@ -679,6 +743,15 @@ fun DrawerContent(
                 isRefreshing = isRefreshingPenalties,
                 onRefresh = onRefreshPenalties,
                 onClose = onClose
+            )
+        }
+        "licence_points" -> {
+            LicencePointsScreen(
+                modifier = modifier,
+                licencePoints = licencePoints,
+                classes = classes,
+                isRefreshing = isRefreshingLicencePoints,
+                onRefresh = onRefreshLicencePoints
             )
         }
         "teams" -> {
