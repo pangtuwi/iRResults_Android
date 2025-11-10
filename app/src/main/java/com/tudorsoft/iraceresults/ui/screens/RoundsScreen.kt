@@ -1,5 +1,6 @@
 package com.tudorsoft.iraceresults.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,7 +25,8 @@ fun RoundsScreen(
     modifier: Modifier = Modifier,
     rounds: List<Round> = emptyList(),
     isRefreshing: Boolean = false,
-    onRefresh: () -> Unit = {}
+    onRefresh: () -> Unit = {},
+    onRoundClick: (Round) -> Unit = {}
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -62,7 +64,10 @@ fun RoundsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(rounds) { round ->
-                        RoundCard(round = round)
+                        RoundCard(
+                            round = round,
+                            onClick = { onRoundClick(round) }
+                        )
                     }
                 }
             }
@@ -73,7 +78,8 @@ fun RoundsScreen(
 @Composable
 fun RoundCard(
     round: Round,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     // Check if round is completed (start time is in the past)
     val isCompleted = remember(round.startTime) {
@@ -94,7 +100,12 @@ fun RoundCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (isCompleted) Modifier.clickable { onClick() }
+                else Modifier
+            ),
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor
         ),

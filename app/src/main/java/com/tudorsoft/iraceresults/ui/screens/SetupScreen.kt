@@ -51,7 +51,7 @@ fun SetupScreen(
                 )
                 Text(
                     text = "iRaceResults",
-                    style = MaterialTheme.typography.displayMedium,
+                    style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )

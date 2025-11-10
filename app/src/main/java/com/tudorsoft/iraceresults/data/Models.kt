@@ -61,3 +61,27 @@ data class LicencePointsEntry(
     val licencePoints: Int,
     val className: String = ""
 )
+
+data class RoundEvent(
+    val roundNo: Int,
+    val trackName: String,
+    val scoreEvent: String,
+    val results: List<ClassResults>
+)
+
+data class ClassResults(
+    val className: String,
+    val drivers: List<DriverResult>
+)
+
+data class DriverResult(
+    val position: Int,
+    val displayName: String,
+    val bestLapTime: Long?,
+    val lapsComplete: Int,
+    val championshipPenalty: Int?,
+    val score: Int,
+    val finishPosition: Int?,
+    val finishPositionInClass: Int?,
+    val finishPositionInClassAfterPenalties: Int?
+)

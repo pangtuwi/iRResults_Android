@@ -49,10 +49,12 @@ import com.tudorsoft.iraceresults.data.preferences.PreferencesManager
 import com.tudorsoft.iraceresults.data.preferences.UserPreferences
 import com.tudorsoft.iraceresults.ui.navigation.AppDrawer
 import com.tudorsoft.iraceresults.ui.navigation.DrawerMenuItem
+import com.tudorsoft.iraceresults.ui.screens.AboutScreen
 import com.tudorsoft.iraceresults.ui.screens.AllPenaltiesScreen
 import com.tudorsoft.iraceresults.ui.screens.HomeScreen
 import com.tudorsoft.iraceresults.ui.screens.LicencePointsScreen
 import com.tudorsoft.iraceresults.ui.screens.PenaltiesScreen
+import com.tudorsoft.iraceresults.ui.screens.RoundDetailsScreen
 import com.tudorsoft.iraceresults.ui.screens.RoundsScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
 import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
@@ -98,6 +100,9 @@ fun IRaceResultsApp() {
     var isRefreshingPenalties by remember { mutableStateOf(false) }
     var isRefreshingAllPenalties by remember { mutableStateOf(false) }
     var isRefreshingLicencePoints by remember { mutableStateOf(false) }
+    var roundEvents by remember { mutableStateOf<List<com.tudorsoft.iraceresults.data.RoundEvent>>(emptyList()) }
+    var isRefreshingRoundEvents by remember { mutableStateOf(false) }
+    var selectedRound by remember { mutableStateOf<Round?>(null) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TABLES) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -377,6 +382,109 @@ fun IRaceResultsApp() {
         }
     }
 
+    // Fetch round events data
+    fun fetchRoundEvents(leagueId: String, roundNo: Int) {
+        scope.launch {
+            isRefreshingRoundEvents = true
+            try {
+                val response = RetrofitClient.api.getFullResults(leagueId)
+                android.util.Log.d("MainActivity", "Round events response code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val data = response.body() ?: emptyList()
+                    android.util.Log.d("MainActivity", "Total events received: ${data.size}")
+
+                    // Log all round numbers in the response
+                    data.forEachIndexed { index, event ->
+                        android.util.Log.d("MainActivity", "Event $index: roundNo=${event.roundNo}, scoreEvent=${event.scoreEvent}, trackName=${event.trackName}")
+                        android.util.Log.d("MainActivity", "  Raw results: ${event.results}")
+                    }
+
+                    android.util.Log.d("MainActivity", "Looking for round $roundNo")
+
+                    // Filter events for the selected round
+                    val filteredEvents = data.filter { it.roundNo == roundNo }
+                    android.util.Log.d("MainActivity", "Filtered events count: ${filteredEvents.size}")
+
+                    // Map to domain models
+                    roundEvents = filteredEvents.map { event ->
+                        android.util.Log.d("MainActivity", "Mapping event: ${event.scoreEvent} with ${event.results.size} class results")
+
+                        val mappedResults = event.results.mapNotNull { classResultMap ->
+                            try {
+                                // Extract class name - API uses "classname" not "class"
+                                val className = classResultMap["classname"] as? String
+                                if (className == null) {
+                                    android.util.Log.d("MainActivity", "  Skipping result with null class name")
+                                    return@mapNotNull null
+                                }
+
+                                // Extract drivers list - API uses "positions" not "drivers"
+                                @Suppress("UNCHECKED_CAST")
+                                val driversRaw = classResultMap["positions"] as? List<Map<String, Any>>
+                                if (driversRaw == null || driversRaw.isEmpty()) {
+                                    android.util.Log.d("MainActivity", "  Class $className has null/empty positions - skipping")
+                                    return@mapNotNull null
+                                }
+
+                                android.util.Log.d("MainActivity", "  Class $className has ${driversRaw.size} drivers")
+
+                                // Map drivers and sort them
+                                val drivers = driversRaw.map { driverMap ->
+                                    com.tudorsoft.iraceresults.data.DriverResult(
+                                        position = (driverMap["finish_position_in_class_after_penalties"] as? Double)?.toInt() ?: 0,
+                                        displayName = driverMap["display_name"] as? String ?: "",
+                                        bestLapTime = (driverMap["best_lap_time"] as? Double)?.toLong(),
+                                        lapsComplete = (driverMap["laps_complete"] as? Double)?.toInt() ?: 0,
+                                        championshipPenalty = (driverMap["championship_penalty"] as? Double)?.toInt(),
+                                        score = (driverMap["score"] as? Double)?.toInt() ?: 0,
+                                        finishPosition = (driverMap["finish_position"] as? Double)?.toInt(),
+                                        finishPositionInClass = (driverMap["finish_position_in_class"] as? Double)?.toInt(),
+                                        finishPositionInClassAfterPenalties = (driverMap["finish_position_in_class_after_penalties"] as? Double)?.toInt()
+                                    )
+                                }.sortedWith(compareBy { driver ->
+                                    // Move DQ (-1) to the end by treating as Int.MAX_VALUE
+                                    val pos = driver.finishPositionInClassAfterPenalties ?: Int.MAX_VALUE
+                                    if (pos == -1) Int.MAX_VALUE else pos
+                                })
+
+                                com.tudorsoft.iraceresults.data.ClassResults(
+                                    className = className,
+                                    drivers = drivers
+                                )
+                            } catch (e: Exception) {
+                                android.util.Log.e("MainActivity", "  Error parsing class result", e)
+                                null
+                            }
+                        }
+
+                        android.util.Log.d("MainActivity", "  Final mapped results: ${mappedResults.size} classes")
+
+                        com.tudorsoft.iraceresults.data.RoundEvent(
+                            roundNo = event.roundNo,
+                            trackName = event.trackName,
+                            scoreEvent = event.scoreEvent,
+                            results = mappedResults
+                        )
+                    }
+
+                    android.util.Log.d("MainActivity", "Final roundEvents size: ${roundEvents.size}")
+                } else {
+                    android.util.Log.e("MainActivity", "Failed to fetch round events: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    android.util.Log.e("MainActivity", "Error body: $errorBody")
+                    roundEvents = emptyList()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching round events", e)
+                e.printStackTrace()
+                roundEvents = emptyList()
+            } finally {
+                isRefreshingRoundEvents = false
+            }
+        }
+    }
+
     // Fetch standings data
     fun fetchStandingsData(leagueId: String) {
         scope.launch {
@@ -597,11 +705,33 @@ fun IRaceResultsApp() {
             AppDrawer(
                 currentRoute = currentDrawerRoute,
                 onMenuItemClick = { item ->
-                    // If Tables is clicked, clear the drawer route to show home page
-                    if (item.route == "tables") {
-                        currentDrawerRoute = ""
-                    } else {
-                        currentDrawerRoute = item.route
+                    // Map drawer routes to bottom nav destinations
+                    when (item.route) {
+                        "tables" -> {
+                            currentDestination = AppDestinations.TABLES
+                            currentDrawerRoute = ""
+                        }
+                        "rounds" -> {
+                            currentDestination = AppDestinations.ROUNDS
+                            currentDrawerRoute = ""
+                            selectedRound = null // Reset round selection
+                        }
+                        "teams" -> {
+                            currentDestination = AppDestinations.TEAMS
+                            currentDrawerRoute = ""
+                        }
+                        "penalties" -> {
+                            currentDestination = AppDestinations.PENALTIES
+                            currentDrawerRoute = ""
+                        }
+                        "licence_points" -> {
+                            currentDestination = AppDestinations.LICENCE
+                            currentDrawerRoute = ""
+                        }
+                        else -> {
+                            // For drawer-only items (my_penalties, settings, about)
+                            currentDrawerRoute = item.route
+                        }
                     }
                 },
                 onCloseDrawer = {
@@ -626,10 +756,8 @@ fun IRaceResultsApp() {
                         selected = it == currentDestination,
                         onClick = {
                             currentDestination = it
-                            // Reset drawer route when navigating to Tables
-                            if (it == AppDestinations.TABLES) {
-                                currentDrawerRoute = ""
-                            }
+                            // Reset drawer route when navigating via bottom nav
+                            currentDrawerRoute = ""
                         }
                     )
                 }
@@ -643,7 +771,7 @@ fun IRaceResultsApp() {
                             Text(
                                 text = "iRaceResults",
                                 fontFamily = AddcnFontFamily,
-                                fontSize = 28.sp,
+                                fontSize = 32.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
@@ -667,57 +795,87 @@ fun IRaceResultsApp() {
                     )
                 }
             ) { innerPadding ->
-                when (currentDestination) {
+                // Check if drawer route overrides the current destination
+                if (currentDrawerRoute.isNotEmpty()) {
+                    DrawerContent(
+                        route = currentDrawerRoute,
+                        modifier = Modifier.padding(innerPadding),
+                        onResetSetup = ::handleResetSetup,
+                        teamStandings = teamStandings,
+                        isRefreshingTeams = isRefreshingTeams,
+                        onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) },
+                        rounds = rounds,
+                        isRefreshingRounds = isRefreshingRounds,
+                        onRefreshRounds = { fetchRounds(userPreferences!!.leagueId) },
+                        penalties = penalties,
+                        isRefreshingPenalties = isRefreshingPenalties,
+                        onRefreshPenalties = { fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId) },
+                        allPenalties = allPenalties,
+                        isRefreshingAllPenalties = isRefreshingAllPenalties,
+                        onRefreshAllPenalties = { fetchAllPenalties(userPreferences!!.leagueId) },
+                        licencePoints = licencePoints,
+                        classes = classes,
+                        isRefreshingLicencePoints = isRefreshingLicencePoints,
+                        onRefreshLicencePoints = { fetchLicencePoints(userPreferences!!.leagueId) },
+                        selectedRound = selectedRound,
+                        roundEvents = roundEvents,
+                        isRefreshingRoundEvents = isRefreshingRoundEvents,
+                        onRoundClick = { round ->
+                            selectedRound = round
+                            fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                        },
+                        onRoundBack = { selectedRound = null },
+                        onRefreshRoundEvents = {
+                            if (selectedRound != null) {
+                                fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo)
+                            }
+                        },
+                        onClose = { currentDrawerRoute = "" }
+                    )
+                } else when (currentDestination) {
                     AppDestinations.TABLES -> {
-                        if (currentDrawerRoute.isEmpty()) {
-                            HomeScreen(
-                                modifier = Modifier.padding(innerPadding),
-                                league = League(
-                                    leagueId = userPreferences!!.leagueId,
-                                    leagueName = userPreferences!!.leagueName
-                                ),
-                                driver = Driver(
-                                    displayName = userPreferences!!.displayName,
-                                    className = userPreferences!!.driverClass,
-                                    custId = userPreferences!!.custId.toIntOrNull() ?: 0
-                                ),
-                                classes = classes,
-                                standings = standings,
-                                isRefreshing = isRefreshing,
-                                onRefresh = { fetchStandingsData(userPreferences!!.leagueId) }
-                            )
-                        } else {
-                            DrawerContent(
-                                route = currentDrawerRoute,
-                                modifier = Modifier.padding(innerPadding),
-                                onResetSetup = ::handleResetSetup,
-                                teamStandings = teamStandings,
-                                isRefreshingTeams = isRefreshingTeams,
-                                onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) },
-                                rounds = rounds,
-                                isRefreshingRounds = isRefreshingRounds,
-                                onRefreshRounds = { fetchRounds(userPreferences!!.leagueId) },
-                                penalties = penalties,
-                                isRefreshingPenalties = isRefreshingPenalties,
-                                onRefreshPenalties = { fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId) },
-                                allPenalties = allPenalties,
-                                isRefreshingAllPenalties = isRefreshingAllPenalties,
-                                onRefreshAllPenalties = { fetchAllPenalties(userPreferences!!.leagueId) },
-                                licencePoints = licencePoints,
-                                classes = classes,
-                                isRefreshingLicencePoints = isRefreshingLicencePoints,
-                                onRefreshLicencePoints = { fetchLicencePoints(userPreferences!!.leagueId) },
-                                onClose = { currentDrawerRoute = "" }
-                            )
-                        }
+                        HomeScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            league = League(
+                                leagueId = userPreferences!!.leagueId,
+                                leagueName = userPreferences!!.leagueName
+                            ),
+                            driver = Driver(
+                                displayName = userPreferences!!.displayName,
+                                className = userPreferences!!.driverClass,
+                                custId = userPreferences!!.custId.toIntOrNull() ?: 0
+                            ),
+                            classes = classes,
+                            standings = standings,
+                            isRefreshing = isRefreshing,
+                            onRefresh = { fetchStandingsData(userPreferences!!.leagueId) }
+                        )
                     }
                     AppDestinations.ROUNDS -> {
-                        RoundsScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            rounds = rounds,
-                            isRefreshing = isRefreshingRounds,
-                            onRefresh = { fetchRounds(userPreferences!!.leagueId) }
-                        )
+                        if (selectedRound != null) {
+                            // Show round details screen
+                            RoundDetailsScreen(
+                                modifier = Modifier.padding(innerPadding),
+                                roundNo = selectedRound!!.roundNo,
+                                trackName = selectedRound!!.trackName,
+                                events = roundEvents,
+                                isRefreshing = isRefreshingRoundEvents,
+                                onRefresh = { fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo) },
+                                onBack = { selectedRound = null }
+                            )
+                        } else {
+                            // Show rounds list screen
+                            RoundsScreen(
+                                modifier = Modifier.padding(innerPadding),
+                                rounds = rounds,
+                                isRefreshing = isRefreshingRounds,
+                                onRefresh = { fetchRounds(userPreferences!!.leagueId) },
+                                onRoundClick = { round ->
+                                    selectedRound = round
+                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                }
+                            )
+                        }
                     }
                     AppDestinations.TEAMS -> {
                         TeamStandingsScreen(
@@ -790,16 +948,37 @@ fun DrawerContent(
     classes: List<RacingClass> = emptyList(),
     isRefreshingLicencePoints: Boolean = false,
     onRefreshLicencePoints: () -> Unit = {},
+    selectedRound: Round? = null,
+    roundEvents: List<com.tudorsoft.iraceresults.data.RoundEvent> = emptyList(),
+    isRefreshingRoundEvents: Boolean = false,
+    onRoundClick: (Round) -> Unit = {},
+    onRoundBack: () -> Unit = {},
+    onRefreshRoundEvents: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
     when (route) {
         "rounds" -> {
-            RoundsScreen(
-                modifier = modifier,
-                rounds = rounds,
-                isRefreshing = isRefreshingRounds,
-                onRefresh = onRefreshRounds
-            )
+            if (selectedRound != null) {
+                // Show round details screen
+                RoundDetailsScreen(
+                    modifier = modifier,
+                    roundNo = selectedRound.roundNo,
+                    trackName = selectedRound.trackName,
+                    events = roundEvents,
+                    isRefreshing = isRefreshingRoundEvents,
+                    onRefresh = onRefreshRoundEvents,
+                    onBack = onRoundBack
+                )
+            } else {
+                // Show rounds list screen
+                RoundsScreen(
+                    modifier = modifier,
+                    rounds = rounds,
+                    isRefreshing = isRefreshingRounds,
+                    onRefresh = onRefreshRounds,
+                    onRoundClick = onRoundClick
+                )
+            }
         }
         "penalties" -> {
             AllPenaltiesScreen(
@@ -839,6 +1018,11 @@ fun DrawerContent(
             SettingsScreen(
                 modifier = modifier,
                 onResetSetup = onResetSetup
+            )
+        }
+        "about" -> {
+            AboutScreen(
+                modifier = modifier
             )
         }
         else -> {

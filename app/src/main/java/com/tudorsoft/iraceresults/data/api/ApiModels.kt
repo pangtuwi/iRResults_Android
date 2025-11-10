@@ -119,3 +119,14 @@ data class LicencePointsResponse(
     @SerializedName("classnumber")
     val classNumber: Int?
 )
+
+data class RoundEventResponse(
+    @SerializedName("round_no")
+    val roundNo: Int,
+    @SerializedName("track_name")
+    val trackName: String,
+    @SerializedName("score_event")
+    val scoreEvent: String,
+    @SerializedName("results")
+    val results: List<Map<String, Any>>
+)
