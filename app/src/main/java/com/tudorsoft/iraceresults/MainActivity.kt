@@ -252,17 +252,21 @@ fun IRaceResultsApp() {
         scope.launch {
             isRefreshingPenalties = true
             try {
+                android.util.Log.d("MainActivity", "Fetching penalties for league: $leagueId, user: $custId")
                 val response = RetrofitClient.api.getPenalties(leagueId)
                 android.util.Log.d("MainActivity", "Penalties response code: ${response.code()}")
 
                 if (response.isSuccessful) {
-                    val data = response.body() ?: emptyList()
+                    val data = response.body()
+                    android.util.Log.d("MainActivity", "Penalties response body is null: ${data == null}")
+                    android.util.Log.d("MainActivity", "Penalties raw data size: ${data?.size ?: 0}")
+
                     val userCustId = custId.toIntOrNull() ?: 0
 
                     // Filter penalties for the current user only, handling null values
                     penalties = data
-                        .filter { it.custId == userCustId }
-                        .map { penaltyResponse ->
+                        ?.filter { it.custId == userCustId }
+                        ?.map { penaltyResponse ->
                             Penalty(
                                 protestId = penaltyResponse.protestId,
                                 roundName = penaltyResponse.roundName,
@@ -271,19 +275,21 @@ fun IRaceResultsApp() {
                                 driverName = penaltyResponse.displayName,
                                 stewardsDecision = penaltyResponse.stewardsDecision
                             )
-                        }
-                    android.util.Log.d("MainActivity", "Fetched ${penalties.size} penalties for user $custId (out of ${data.size} total)")
+                        } ?: emptyList()
+                    android.util.Log.d("MainActivity", "Fetched ${penalties.size} penalties for user $custId (out of ${data?.size ?: 0} total)")
                 } else {
                     android.util.Log.e("MainActivity", "Failed to fetch penalties: ${response.code()}")
                     val errorBody = response.errorBody()?.string()
                     android.util.Log.e("MainActivity", "Error body: $errorBody")
+                    penalties = emptyList()
                 }
             } catch (e: com.google.gson.JsonSyntaxException) {
                 android.util.Log.e("MainActivity", "JSON parsing error for penalties - API may have returned non-JSON response", e)
-                // Keep penalties empty on error
+                android.util.Log.e("MainActivity", "Exception details: ${e.message}")
                 penalties = emptyList()
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Error fetching penalties", e)
+                android.util.Log.e("MainActivity", "Exception details: ${e.message}")
                 penalties = emptyList()
             } finally {
                 isRefreshingPenalties = false
@@ -296,14 +302,21 @@ fun IRaceResultsApp() {
         scope.launch {
             isRefreshingAllPenalties = true
             try {
+                android.util.Log.d("MainActivity", "Fetching all penalties for league: $leagueId")
                 val response = RetrofitClient.api.getPenalties(leagueId)
                 android.util.Log.d("MainActivity", "All penalties response code: ${response.code()}")
 
                 if (response.isSuccessful) {
-                    val data = response.body() ?: emptyList()
+                    val data = response.body()
+                    android.util.Log.d("MainActivity", "All penalties response body is null: ${data == null}")
+                    android.util.Log.d("MainActivity", "All penalties raw data size: ${data?.size ?: 0}")
+
+                    if (data != null && data.isNotEmpty()) {
+                        android.util.Log.d("MainActivity", "First penalty sample: ${data.first()}")
+                    }
 
                     // Map all penalties without filtering by user, handling null values
-                    allPenalties = data.map { penaltyResponse ->
+                    allPenalties = data?.map { penaltyResponse ->
                         Penalty(
                             protestId = penaltyResponse.protestId,
                             roundName = penaltyResponse.roundName,
@@ -312,18 +325,21 @@ fun IRaceResultsApp() {
                             driverName = penaltyResponse.displayName,
                             stewardsDecision = penaltyResponse.stewardsDecision
                         )
-                    }
+                    } ?: emptyList()
                     android.util.Log.d("MainActivity", "Fetched ${allPenalties.size} total penalties")
                 } else {
                     android.util.Log.e("MainActivity", "Failed to fetch all penalties: ${response.code()}")
                     val errorBody = response.errorBody()?.string()
                     android.util.Log.e("MainActivity", "Error body: $errorBody")
+                    allPenalties = emptyList()
                 }
             } catch (e: com.google.gson.JsonSyntaxException) {
                 android.util.Log.e("MainActivity", "JSON parsing error for all penalties - API may have returned non-JSON response", e)
+                android.util.Log.e("MainActivity", "Exception details: ${e.message}")
                 allPenalties = emptyList()
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Error fetching all penalties", e)
+                android.util.Log.e("MainActivity", "Exception details: ${e.message}")
                 allPenalties = emptyList()
             } finally {
                 isRefreshingAllPenalties = false

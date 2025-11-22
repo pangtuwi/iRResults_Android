@@ -48,11 +48,11 @@ data class Round(
 
 data class Penalty(
     val protestId: Int,
-    val roundName: String,
+    val roundName: String?,
     val roundNo: Int,
-    val scoreEvent: String = "",
-    val driverName: String,
-    val stewardsDecision: String
+    val scoreEvent: String?,
+    val driverName: String?,
+    val stewardsDecision: String?
 )
 
 data class LicencePointsEntry(

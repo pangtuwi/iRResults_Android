@@ -70,7 +70,7 @@ data class PenaltyResponse(
     @SerializedName("protest_id")
     val protestId: Int,
     @SerializedName("round_name")
-    val roundName: String,
+    val roundName: String?,
     @SerializedName("round_no")
     val roundNo: Int,
     @SerializedName("score_event")
@@ -84,13 +84,13 @@ data class PenaltyResponse(
     @SerializedName("driver_statement")
     val driverStatement: String?,
     @SerializedName("display_name")
-    val displayName: String,
+    val displayName: String?,
     @SerializedName("protesting_cust_id")
     val protestingCustId: Int,
     @SerializedName("protesting_driver_name")
-    val protestingDriverName: String,
+    val protestingDriverName: String?,
     @SerializedName("stewards_decision")
-    val stewardsDecision: String,
+    val stewardsDecision: String?,
     @SerializedName("time_added")
     val timeAdded: Int,
     @SerializedName("positions")

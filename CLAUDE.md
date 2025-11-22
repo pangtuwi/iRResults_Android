@@ -1,196 +1,286 @@
-# iRaceResults App Development
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-Android application to display league results from iraceresults.co.uk
+iRaceResults is an Android app for tracking iRacing league standings, penalties, and driver performance. Built with Jetpack Compose and Material 3, integrating with the iraceresults.co.uk API.
 
+**Current Version:** 1.0.3 (Beta)
 **Package:** `com.tudorsoft.iraceresults`
-**Tech Stack:** Kotlin, Jetpack Compose, Material 3, Adaptive Navigation
+**Min SDK:** 24 (Android 7.0+) | **Target SDK:** 36
+**Tech Stack:** Kotlin, Jetpack Compose, Material 3, Retrofit 2, DataStore
 
-## Current State
+---
 
-### Completed
-- Initial project setup with Android Studio
-- Basic navigation structure with NavigationSuiteScaffold
-- Three navigation destinations: Home, Favorites, Profile
-- Material 3 theming with edge-to-edge display
-- Compose UI foundation
-- **Main Home Screen UI** with:
-  - "iRaceResults" title using custom ADDCN font
-  - Information section (league name/ID and driver info with class)
-  - Class selection buttons (Gold, Silver, Bronze, Unclassified)
-  - Standings table with position, driver name, and points
-  - Sample data matching real league data
-- **Custom Color Scheme** matching iraceresults.co.uk:
-  - Orange primary color (#FF6600)
-  - White surface cards on orange background
-  - Custom button colors (Gold, Silver, Bronze, Gray)
-  - Proper text contrast and hierarchy
-- **Navigation Drawer** with hamburger menu:
-  - Rounds
-  - Penalties
-  - My Penalties
-  - Licence Points
-  - Teams
-  - Settings
-  - About
-  - Drawer header with app branding
-  - Smooth slide-in animation
+## Build & Test Commands
+
+### Build
+```bash
+# Debug build
+./gradlew assembleDebug
+# Output: app/build/outputs/apk/debug/app-debug.apk
+
+# Release build (requires signing config)
+./gradlew assembleRelease
+
+# Android App Bundle for Play Store
+./gradlew bundleRelease
+# Output: app/build/outputs/bundle/release/app-release.aab
+```
+
+### Testing
+```bash
+# Unit tests
+./gradlew test
+
+# Instrumented tests (requires device/emulator)
+./gradlew connectedAndroidTest
+
+# Run specific test
+./gradlew test --tests com.tudorsoft.iraceresults.ExampleUnitTest
+```
+
+### Gradle
+```bash
+# Sync dependencies
+./gradlew build --refresh-dependencies
+
+# Clean build
+./gradlew clean build
+```
+
+---
+
+## Architecture Overview
+
+### Navigation Architecture (Critical)
+The app uses a **dual navigation system** that required careful coordination:
+
+1. **Bottom Navigation (5 tabs)**: Tables, Rounds, Teams, Penalties, Licence
+2. **Drawer Menu (8 items)**: All bottom nav items + My Penalties, Settings, About
+
+**Key Implementation Detail:**
+- Navigation state is managed in `MainActivity.kt` (not in ViewModels yet)
+- Drawer routes are checked BEFORE bottom nav routing to prevent conflicts
+- Drawer-only items (My Penalties, Settings, About) overlay the current tab
+- Bottom nav clicks clear drawer routes to prevent stale navigation state
+- Round selection state must be passed to drawer to maintain context
+
+**Critical Navigation Logic in MainActivity:**
+```kotlin
+// Check drawer routes first
+if (drawerRoute != null) {
+    when (drawerRoute) {
+        "my_penalties" -> PenaltiesScreen(...)
+        "settings" -> SettingsScreen(...)
+        "about" -> AboutScreen()
+        // Tab items switch the bottom nav
+        "tables" -> { currentRoute = "tables"; drawerRoute = null }
+        // etc...
+    }
+} else {
+    // Then handle bottom nav routes
+    when (currentRoute) { ... }
+}
+```
+
+### Data Flow Pattern
+```
+MainActivity (state holder)
+    ↓ launches coroutines
+RetrofitClient.api → API call
+    ↓ returns Response<T>
+ApiModels (deserialization)
+    ↓ maps to
+Domain Models (Models.kt)
+    ↓ updates
+remember { mutableStateOf } in MainActivity
+    ↓ triggers recomposition of
+Screen Composables
+```
+
+**Current Limitation**: No ViewModels or Repository pattern yet. All state and API calls are in MainActivity (~1100+ lines). Migration to MVVM is planned.
+
+### API Integration
+**Base URL**: `https://iraceresults.co.uk/api/`
+**Client**: Retrofit 2 with Gson converter (singleton in `RetrofitClient.kt`)
+**Auth**: None required (public API)
+
+**Key Endpoints**:
+- `GET /:leagueid/classtotals` - Championship standings (nested arrays)
+- `GET /:leagueid/fullresults` - Round event results (Map<String, Any> for flexibility)
+- `GET /:leagueid/drivers` - Driver list with class info
+- `GET /:leagueid/penalties` - Penalty information
+- `GET /:leagueid/licencepoints` - Licence points (nested arrays)
+
+**Special Parsing Cases**:
+- `fullresults` endpoint returns `Map<String, Any>` because result structure varies
+- DQ (disqualified) drivers have `position = -1` → display as "DQ" text
+- DQ drivers must be sorted to bottom of results manually
+- Nested arrays require `mapNotNull` to handle nulls safely
+
+### State Management
+**Pattern**: Compose `remember { mutableStateOf }` with coroutines
+**Persistence**: DataStore Preferences for user settings (League ID, Customer ID, driver name)
+**No offline caching yet**: Room database planned but not implemented
+
+**Critical State Variables in MainActivity**:
+- `userPreferences` - Loaded from DataStore on startup
+- `standings`, `teamStandings`, `rounds`, `penalties`, `licencePoints` - API data
+- `isRefreshing*` - Pull-to-refresh states per screen
+- `currentRoute`, `drawerRoute` - Navigation state
+- `selectedRound` - Currently selected round for details view
 
 ### Project Structure
 ```
 app/src/main/java/com/tudorsoft/iraceresults/
-├── MainActivity.kt (main entry point with initialization logic)
+├── MainActivity.kt                 # ALL navigation and state management (1100+ lines)
 ├── data/
-│   ├── Models.kt (League, Driver, RacingClass, StandingEntry)
+│   ├── Models.kt                  # Domain models (League, Driver, StandingEntry, etc.)
 │   ├── api/
-│   │   ├── ApiModels.kt (API response models)
-│   │   ├── IRaceResultsApi.kt (Retrofit API interface)
-│   │   └── RetrofitClient.kt (Retrofit singleton)
+│   │   ├── ApiModels.kt          # API response DTOs with @SerializedName
+│   │   ├── IRaceResultsApi.kt    # Retrofit interface definitions
+│   │   └── RetrofitClient.kt     # Singleton API client with logging
 │   └── preferences/
-│       ├── UserPreferences.kt (user data model)
-│       └── PreferencesManager.kt (DataStore manager)
-├── ui/
-│   ├── navigation/
-│   │   ├── DrawerMenu.kt (drawer menu items definition)
-│   │   └── AppDrawer.kt (navigation drawer composable)
-│   ├── screens/
-│   │   ├── HomeScreen.kt (main page components)
-│   │   └── SetupScreen.kt (first-time setup/onboarding)
-│   └── theme/
-│       ├── Color.kt (custom color scheme)
-│       ├── Theme.kt (Material 3 theme)
-│       └── Type.kt (custom ADDCN font)
-app/src/main/res/
-└── font/
-    └── addcn.ttf (custom brand font)
+│       ├── UserPreferences.kt    # Data class for user settings
+│       └── PreferencesManager.kt # DataStore wrapper
+└── ui/
+    ├── screens/                   # 9 composable screens (each 100-300 lines)
+    │   ├── SetupScreen.kt        # Onboarding flow
+    │   ├── HomeScreen.kt         # Tables/Standings
+    │   ├── RoundsScreen.kt       # Round list
+    │   ├── RoundDetailsScreen.kt # Event results with expandable cards
+    │   └── ...
+    ├── navigation/
+    │   ├── DrawerMenu.kt         # Drawer item definitions
+    │   └── AppDrawer.kt          # Drawer UI composable
+    └── theme/
+        ├── Theme.kt              # Material 3 theme
+        ├── Color.kt              # Custom color scheme (orange branding)
+        └── Type.kt               # ADDCN custom font
 ```
 
-### Dependencies
-- Jetpack Compose with Material 3
-- Adaptive Navigation Suite
-- Lifecycle & Activity KTX
-- DataStore Preferences (for persistent storage)
-- Retrofit 2 (for API calls)
-- Gson Converter (for JSON parsing)
-- OkHttp Logging Interceptor (for debugging)
-- Kotlin Coroutines (for async operations)
-- Testing: JUnit, Espresso
+### Compose Patterns Used
+1. **Pull-to-Refresh**: All data screens use `pullRefresh` modifier with state
+2. **Expandable Cards**: `AnimatedVisibility` with `expandVertically`/`fadeIn` transitions
+3. **Lazy Lists**: `LazyColumn` for scrollable content with `items()` builder
+4. **Material 3**: `NavigationSuiteScaffold`, `ModalNavigationDrawer`, `Card`, `ElevatedCard`
+5. **State**: `rememberSaveable` for state that survives configuration changes
 
-## App Initialization Flow
+### Error Handling Pattern
+```kotlin
+try {
+    val response = RetrofitClient.api.someEndpoint()
+    if (response.isSuccessful) {
+        response.body()?.let { data ->
+            // Map API models to domain models
+        }
+    } else {
+        Log.e("TAG", "Error: ${response.code()}")
+    }
+} catch (e: Exception) {
+    Log.e("TAG", "Exception: ${e.message}")
+}
+```
 
-### First Startup Process
-1. User opens app for the first time
-2. Setup screen is displayed requesting:
-   - **League ID** (e.g., NXTGT3S8)
-   - **iRacing Customer ID** (e.g., 123456)
-3. On submission:
-   - App calls `GET /:leagueid/drivers` endpoint
-   - Searches for user's `cust_id` in drivers list
-   - If found:
-     - Extracts driver's `display_name` and `class`
-     - Saves all data to DataStore (persistent storage)
-     - Marks setup as complete
-     - Navigates to main app
-   - If not found:
-     - Shows error message
-     - Allows user to retry
+### Logging Convention
+- Use `android.util.Log.d()` for debug logs
+- Tag format: "ScreenName" or "APICall"
+- Log all API responses, especially complex JSON structures
+- Log navigation state changes for debugging
 
-### Subsequent Startups
-- App loads saved preferences from DataStore
-- Directly shows main app with user's data
-- User info persists across app restarts
+---
 
-### Data Persistence
-- Uses Android DataStore for preferences
-- Stores: League ID, Customer ID, Display Name, Class, Setup Complete flag
-- Can be reset through Settings (future implementation)
+## Known Issues & Technical Debt
 
-## To Do
+### Recent Bug Fixes
+- **Penalties not displaying** (2025-01-22): Fixed NullPointerException caused by null values in penalty API responses. Multiple fields (`roundName`, `driverName`, `stewardsDecision`, `scoreEvent`) can be null. Made all relevant fields nullable in both `Penalty` and `PenaltyResponse` models. Updated UI screens to handle nulls with fallback text: "Unknown Round", "Unknown Driver", "Unknown Event", "No decision recorded".
 
-### Phase 1: Data Layer
-- [x] Add internet permission to AndroidManifest.xml
-- [x] Set up networking library (Retrofit)
-- [x] Define data models for race results and leagues
-- [x] Create API service for iraceresults.co.uk
-- [x] Implement app initialization flow with DataStore
-- [ ] Create repository pattern for data access
-- [ ] Fetch actual league name from API
+### Architecture (High Priority)
+1. **No ViewModels**: All state in MainActivity (~1100 lines) - needs MVVM refactor
+2. **No Repository Pattern**: Direct API calls from MainActivity
+3. **No Dependency Injection**: Manual singleton management, Hilt needed
+4. **No Offline Support**: No Room database, no data caching
+5. **No Error Recovery**: No retry mechanisms for failed API calls
 
-### Phase 2: UI Implementation
-- [ ] Create Home screen to display league listings
-- [ ] Implement league results detail screen
-- [ ] Build Favorites screen for saved leagues
-- [ ] Design Profile/Settings screen
-- [ ] Add proper navigation between screens
+### Testing (High Priority)
+- **Test Coverage**: 0% - no unit tests, no UI tests
+- **Test Infrastructure**: Not set up (mocking, fixtures, CI/CD)
 
-### Phase 3: Features
-- [ ] Implement pull-to-refresh functionality
-- [ ] Add search/filter capabilities
-- [ ] Implement favorites persistence (Room/DataStore)
-- [ ] Add loading states and error handling
-- [ ] Implement offline caching
+### UI/UX Improvements (Medium Priority)
+- Search/filter functionality needed across screens
+- No data visualization (charts, graphs)
+- No notifications system
+- Accessibility improvements needed (TalkBack, high contrast)
 
-### Phase 4: Polish
-- [ ] Add animations and transitions
-- [ ] Implement proper theming (light/dark mode)
-- [ ] Add unit and UI tests
-- [ ] Performance optimization
-- [ ] Accessibility improvements
+### Code Organization (Medium Priority)
+- Extract common UI components (tables, cards) into reusable composables
+- Split screen files (some 300+ lines)
+- Better resource organization
 
-## Notes
-- Target SDK: 36
-- Min SDK: 24 (Android 7.0+)
-- Using adaptive navigation for tablet/phone optimization
-- Edge-to-edge display enabled
+---
 
-## API Information
+## Development Notes
 
-### Base URL
-iraceresults.co.uk (running on configured port)
+### When Adding New Screens
+1. Create composable in `ui/screens/YourScreen.kt`
+2. Add navigation logic to `MainActivity.kt` (drawer and/or bottom nav)
+3. If drawer-only: add to `drawerRoute` handling
+4. If bottom nav: add to both `currentRoute` and drawer tab switching
+5. Pass required state variables as parameters from MainActivity
+6. Use pull-to-refresh pattern if loading data
+7. Handle loading, error, and empty states
 
-### Key Endpoints for Android App
+### When Adding New API Endpoints
+1. Add interface method to `IRaceResultsApi.kt`
+2. Create response DTO in `ApiModels.kt` with `@SerializedName`
+3. Create domain model in `Models.kt`
+4. Add state variable in MainActivity
+5. Create coroutine to fetch data
+6. Map API model → domain model
+7. Update UI to display new data
 
-#### Global Endpoints
-- `GET /leaguelist` - Get all available leagues
-- `GET /cache` - Get entire cached league data
+### Custom Resources
+- **Font**: `app/src/main/res/font/addcn.ttf` (ADDCN branding font)
+- **Icons**: Vector drawables in `res/drawable/`
+  - `ic_launcher_background.xml` - Checkered flag pattern
+  - `ic_launcher_foreground.xml` - Racing helmet
+- **Colors**: Defined in `ui/theme/Color.kt` (orange branding scheme)
 
-#### League-Specific Endpoints (/:leagueid/)
-- `GET /:leagueid/leaguename` - Get league name and ID
-- `GET /:leagueid/classtotals` - Class totals/standings
-- `GET /:leagueid/teamstotals` - Team totals
-- `GET /:leagueid/fullresults` - Complete results data
-- `GET /:leagueid/drivers` - All drivers in the league
-- `GET /:leagueid/rounds` - Rounds information
-- `GET /:leagueid/completedrounds` - Completed rounds info
-- `GET /:leagueid/classes` - Classes configuration
-- `GET /:leagueid/penalties` - Penalties data (penaltiesjson)
-- `GET /:leagueid/licencepoints` - Licence points data
-- `GET /:leagueid/displayconfig` - Display configuration
+### Version Management
+Update 3 locations when bumping version:
+1. `app/build.gradle.kts` - `versionCode` and `versionName`
+2. `AboutScreen.kt` - Version display text
+3. This file - Project Overview section
 
-#### POST Endpoints
-- `POST /:leagueid/results` - Get filtered results (round_no, cust_id)
-- `POST /:leagueid/map` - Get track map image (round_name)
-- `POST /:leagueid/irresults` - Get iRacing session results (round_no, session_no)
+---
 
-#### Images
-- `GET /:leagueid/img/header.png` - League header image
-- `GET /:leagueid/img/footer.png` - League footer image
-- Track maps via POST /map endpoint
+## Roadmap
 
-### Notes
-- All league IDs are case-insensitive (converted to uppercase)
-- Data is cached on the server
-- Authentication routes available at `/auth`
-- Admin routes at `/admin`
+### Immediate Priorities
+1. **MVVM Migration**: Extract state from MainActivity into ViewModels
+2. **Room Database**: Add offline caching for standings, rounds, penalties
+3. **Testing**: Set up test infrastructure (unit tests for API/models, UI tests)
+4. **Repository Layer**: Abstract data sources, use Flow for reactive streams
 
-## Questions/Decisions Needed
-- ~~Data source: Will we scrape iraceresults.co.uk or is there an API?~~ **RESOLVED: Full REST API available**
-- What's the base URL/port for the API server?
-- Update frequency: Real-time, periodic refresh, or manual?
-- Offline support: How much data to cache locally?
-- User accounts: Do users need to authenticate?
-- Which features to prioritize: Results viewing, driver stats, team standings?
+### Feature Wishlist
+- Search/filter across drivers, teams, penalties
+- Data visualization (points progression charts)
+- Push notifications for race results
+- Enhanced error handling with retry logic
+- Theme selection (Light/Dark/System)
+- Accessibility improvements (TalkBack, high contrast)
+- Internationalization support
+
+---
 
 ## Resources
-- iraceresults.co.uk - source website
-- API_DOCUMENTATION.md - complete API reference
+
+- **API Documentation**: https://iraceresults.co.uk/api/
+- **GitHub Repository**: https://github.com/pangtuwi/iRResults_Android
+- **Material 3 Guidelines**: https://m3.material.io
+- **Jetpack Compose Docs**: https://developer.android.com/jetpack/compose
+
+---
+
+**Last Updated:** 2025-01-22 (reformatted for clarity and conciseness)

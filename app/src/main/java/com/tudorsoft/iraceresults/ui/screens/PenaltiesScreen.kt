@@ -31,7 +31,7 @@ fun PenaltiesScreen(
 
     // Get unique round names for filtering
     val roundNames = remember(penalties) {
-        listOf("All Rounds") + penalties.map { it.roundName }.distinct().sorted()
+        listOf("All Rounds") + penalties.mapNotNull { it.roundName }.distinct().sorted()
     }
 
     // Filter penalties based on selected round
@@ -149,7 +149,7 @@ fun PenaltyCard(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = "${penalty.roundName} - ${penalty.scoreEvent}",
+                        text = "${penalty.roundName ?: "Unknown Round"} - ${penalty.scoreEvent ?: "Unknown Event"}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -176,7 +176,7 @@ fun PenaltyCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
                 Text(
-                    text = penalty.driverName,
+                    text = penalty.driverName ?: "Unknown Driver",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
@@ -192,7 +192,7 @@ fun PenaltyCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = penalty.stewardsDecision,
+                        text = penalty.stewardsDecision ?: "No decision recorded",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
