@@ -8,12 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tudorsoft.iraceresults.data.Driver
 
 @Composable
 fun AppDrawer(
     currentRoute: String,
     onMenuItemClick: (DrawerMenuItem) -> Unit,
     onCloseDrawer: () -> Unit,
+    driver: Driver = Driver("", ""),
     modifier: Modifier = Modifier
 ) {
     ModalDrawerSheet(
@@ -27,6 +29,14 @@ fun AppDrawer(
         ) {
             // Drawer Header
             DrawerHeader()
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+            )
+
+            // Driver Info Panel
+            DriverInfoPanel(driver = driver)
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),
@@ -82,6 +92,49 @@ private fun DrawerHeader(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
             )
+        }
+    }
+}
+
+@Composable
+private fun DriverInfoPanel(driver: Driver, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Driver",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Text(
+                    text = driver.displayName.ifEmpty { "Not Set" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "Class",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Text(
+                    text = driver.className.ifEmpty { "N/A" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
 }

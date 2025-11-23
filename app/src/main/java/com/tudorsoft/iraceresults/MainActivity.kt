@@ -4,17 +4,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -107,6 +110,9 @@ fun IRaceResultsApp() {
     // Multi-league state
     var availableLeagues by remember { mutableStateOf<List<League>>(emptyList()) }
     var selectedLeague by remember { mutableStateOf<League?>(null) }
+
+    // Driver state
+    var driver by remember { mutableStateOf(Driver("", "")) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TABLES) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
@@ -214,6 +220,16 @@ fun IRaceResultsApp() {
             val selectedId = prefs.selectedLeagueId.ifEmpty { leagues.first().leagueId }
             selectedLeague = leagues.find { it.leagueId == selectedId } ?: leagues.first()
             android.util.Log.d("MainActivity", "Selected league: ${selectedLeague?.leagueName}")
+        }
+
+        // Load driver info from preferences
+        if (prefs.isSetupComplete) {
+            driver = Driver(
+                displayName = prefs.displayName,
+                className = prefs.driverClass,
+                custId = prefs.custId.toIntOrNull() ?: 0
+            )
+            android.util.Log.d("MainActivity", "Loaded driver: ${driver.displayName}, Class: ${driver.className}")
         }
     }
 
@@ -735,9 +751,9 @@ fun IRaceResultsApp() {
 
                 if (driversResponse.isSuccessful) {
                     val drivers = driversResponse.body()
-                    val driver = drivers?.find { it.custId.toString() == custId }
+                    val foundDriver = drivers?.find { it.custId.toString() == custId }
 
-                    if (driver != null) {
+                    if (foundDriver != null) {
                         // Call API to get league name
                         val leagueNameResponse = RetrofitClient.api.getLeagueName(leagueId)
                         val leagueName = if (leagueNameResponse.isSuccessful) {
@@ -748,7 +764,7 @@ fun IRaceResultsApp() {
 
                         // Call API to get classes and find the class name
                         var className = ""
-                        val driverClassNumber = driver.driverClass
+                        val driverClassNumber = foundDriver.driverClass
 
                         if (driverClassNumber != null) {
                             val classesResponse = RetrofitClient.api.getClasses(leagueId)
@@ -767,7 +783,7 @@ fun IRaceResultsApp() {
                                 android.util.Log.e("MainActivity", "Failed to fetch classes: ${classesResponse.code()}")
                             }
                         } else {
-                            android.util.Log.w("MainActivity", "Driver class number is null for ${driver.displayName}")
+                            android.util.Log.w("MainActivity", "Driver class number is null for ${foundDriver.displayName}")
                         }
 
                         // Save user info
@@ -775,8 +791,15 @@ fun IRaceResultsApp() {
                             leagueId = leagueId,
                             leagueName = leagueName,
                             custId = custId,
-                            displayName = driver.displayName,
+                            displayName = foundDriver.displayName,
                             driverClass = className
+                        )
+
+                        // Update driver state
+                        driver = Driver(
+                            displayName = foundDriver.displayName,
+                            className = className,
+                            custId = foundDriver.custId
                         )
 
                         // Reload preferences
@@ -836,6 +859,7 @@ fun IRaceResultsApp() {
         drawerContent = {
             AppDrawer(
                 currentRoute = currentDrawerRoute,
+                driver = driver,
                 onMenuItemClick = { item ->
                     // Map drawer routes to bottom nav destinations
                     when (item.route) {
@@ -927,11 +951,26 @@ fun IRaceResultsApp() {
                     )
                 }
             ) { innerPadding ->
-                // Check if drawer route overrides the current destination
-                if (currentDrawerRoute.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    // League Selector Band
+                    if (availableLeagues.isNotEmpty() && selectedLeague != null) {
+                        LeagueSelectorBand(
+                            league = selectedLeague!!,
+                            availableLeagues = availableLeagues,
+                            onLeagueChange = ::handleLeagueSwitch
+                        )
+                    }
+
+                    // Main Content
+                    // Check if drawer route overrides the current destination
+                    if (currentDrawerRoute.isNotEmpty()) {
                     DrawerContent(
                         route = currentDrawerRoute,
-                        modifier = Modifier.padding(innerPadding),
+                        modifier = Modifier,
                         onResetSetup = ::handleResetSetup,
                         availableLeagues = availableLeagues,
                         selectedLeague = selectedLeague,
@@ -971,13 +1010,7 @@ fun IRaceResultsApp() {
                 } else when (currentDestination) {
                     AppDestinations.TABLES -> {
                         HomeScreen(
-                            modifier = Modifier.padding(innerPadding),
-                            league = selectedLeague ?: League(
-                                leagueId = userPreferences!!.leagueId,
-                                leagueName = userPreferences!!.leagueName
-                            ),
-                            availableLeagues = availableLeagues,
-                            onLeagueChange = ::handleLeagueSwitch,
+                            modifier = Modifier,
                             driver = Driver(
                                 displayName = userPreferences!!.displayName,
                                 className = userPreferences!!.driverClass,
@@ -993,7 +1026,7 @@ fun IRaceResultsApp() {
                         if (selectedRound != null) {
                             // Show round details screen
                             RoundDetailsScreen(
-                                modifier = Modifier.padding(innerPadding),
+                                modifier = Modifier,
                                 roundNo = selectedRound!!.roundNo,
                                 trackName = selectedRound!!.trackName,
                                 events = roundEvents,
@@ -1004,7 +1037,7 @@ fun IRaceResultsApp() {
                         } else {
                             // Show rounds list screen
                             RoundsScreen(
-                                modifier = Modifier.padding(innerPadding),
+                                modifier = Modifier,
                                 rounds = rounds,
                                 isRefreshing = isRefreshingRounds,
                                 onRefresh = { fetchRounds(userPreferences!!.leagueId) },
@@ -1017,7 +1050,7 @@ fun IRaceResultsApp() {
                     }
                     AppDestinations.TEAMS -> {
                         TeamStandingsScreen(
-                            modifier = Modifier.padding(innerPadding),
+                            modifier = Modifier,
                             teamStandings = teamStandings,
                             isRefreshing = isRefreshingTeams,
                             onRefresh = { fetchTeamStandings(userPreferences!!.leagueId) }
@@ -1025,7 +1058,7 @@ fun IRaceResultsApp() {
                     }
                     AppDestinations.PENALTIES -> {
                         AllPenaltiesScreen(
-                            modifier = Modifier.padding(innerPadding),
+                            modifier = Modifier,
                             penalties = allPenalties,
                             isRefreshing = isRefreshingAllPenalties,
                             onRefresh = { fetchAllPenalties(userPreferences!!.leagueId) }
@@ -1033,7 +1066,7 @@ fun IRaceResultsApp() {
                     }
                     AppDestinations.LICENCE -> {
                         LicencePointsScreen(
-                            modifier = Modifier.padding(innerPadding),
+                            modifier = Modifier,
                             licencePoints = licencePoints,
                             classes = classes,
                             isRefreshing = isRefreshingLicencePoints,
@@ -1041,7 +1074,92 @@ fun IRaceResultsApp() {
                         )
                     }
                 }
+                }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LeagueSelectorBand(
+    league: League,
+    availableLeagues: List<League>,
+    onLeagueChange: (League) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        if (availableLeagues.size > 1) {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it }
+            ) {
+                OutlinedTextField(
+                    value = league.leagueName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("League") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                    },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    availableLeagues.forEach { leagueOption ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(leagueOption.leagueName)
+                                    if (leagueOption.status != 1) {
+                                        Text(
+                                            text = when (leagueOption.status) {
+                                                2 -> "Archived"
+                                                else -> "Status ${leagueOption.status}"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                onLeagueChange(leagueOption)
+                                expanded = false
+                            },
+                            leadingIcon = if (leagueOption.leagueId == league.leagueId) {
+                                { Icon(Icons.Default.Check, contentDescription = null) }
+                            } else null
+                        )
+                    }
+                }
+            }
+        } else {
+            OutlinedTextField(
+                value = league.leagueName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("League") },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+            )
         }
     }
 }

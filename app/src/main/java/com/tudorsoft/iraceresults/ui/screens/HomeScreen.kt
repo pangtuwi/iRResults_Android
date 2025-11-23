@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tudorsoft.iraceresults.data.Driver
-import com.tudorsoft.iraceresults.data.League
 import com.tudorsoft.iraceresults.data.RacingClass
 import com.tudorsoft.iraceresults.data.StandingEntry
 import com.tudorsoft.iraceresults.ui.theme.BronzeButton
@@ -37,9 +36,6 @@ import com.tudorsoft.iraceresults.ui.theme.UnclassifiedButton
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    league: League = League("SAMPLE", "Sample Racing League"),
-    availableLeagues: List<League> = listOf(League("SAMPLE", "Sample Racing League")),
-    onLeagueChange: (League) -> Unit = {},
     driver: Driver = Driver("John Doe", "GT3"),
     classes: List<RacingClass> = emptyList(),
     standings: List<StandingEntry> = emptyList(),
@@ -74,14 +70,6 @@ fun HomeScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Information Section
-            InformationSection(
-                league = league,
-                availableLeagues = availableLeagues,
-                onLeagueChange = onLeagueChange,
-                driver = driver
-            )
-
             // Class Selection
             if (classes.isNotEmpty()) {
                 ClassSelectionRow(
@@ -99,140 +87,6 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun InformationSection(
-    league: League,
-    availableLeagues: List<League>,
-    onLeagueChange: (League) -> Unit,
-    driver: Driver,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // League Label
-            Text(
-                text = "League",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-
-            // League Dropdown
-            if (availableLeagues.size > 1) {
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = league.leagueName,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                        },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                            .fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        availableLeagues.forEach { leagueOption ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(leagueOption.leagueName)
-                                        // Status indicator
-                                        if (leagueOption.status != 1) {
-                                            Text(
-                                                text = when (leagueOption.status) {
-                                                    2 -> "Archived"
-                                                    else -> "Status ${leagueOption.status}"
-                                                },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                            )
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    onLeagueChange(leagueOption)
-                                    expanded = false
-                                },
-                                leadingIcon = if (leagueOption.leagueId == league.leagueId) {
-                                    { Icon(Icons.Default.KeyboardArrowDown, contentDescription = null) }
-                                } else null
-                            )
-                        }
-                    }
-                }
-            } else {
-                // Single league - just show as text
-                Text(
-                    text = league.leagueName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Driver Section
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Column {
-                    Text(
-                        text = "Driver",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = driver.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "Class",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = driver.className.ifEmpty { "N/A" },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun ClassSelectionRow(
