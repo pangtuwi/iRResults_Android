@@ -50,4 +50,7 @@ interface IRaceResultsApi {
     suspend fun getFullResults(
         @Path("leagueid") leagueId: String
     ): Response<List<RoundEventResponse>>
+
+    @GET("leaguelist")
+    suspend fun getLeagueList(): Response<List<LeagueListItemResponse>>
 }

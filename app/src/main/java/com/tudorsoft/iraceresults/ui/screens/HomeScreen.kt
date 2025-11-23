@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,8 @@ import com.tudorsoft.iraceresults.ui.theme.UnclassifiedButton
 fun HomeScreen(
     modifier: Modifier = Modifier,
     league: League = League("SAMPLE", "Sample Racing League"),
+    availableLeagues: List<League> = listOf(League("SAMPLE", "Sample Racing League")),
+    onLeagueChange: (League) -> Unit = {},
     driver: Driver = Driver("John Doe", "GT3"),
     classes: List<RacingClass> = emptyList(),
     standings: List<StandingEntry> = emptyList(),
@@ -74,6 +77,8 @@ fun HomeScreen(
             // Information Section
             InformationSection(
                 league = league,
+                availableLeagues = availableLeagues,
+                onLeagueChange = onLeagueChange,
                 driver = driver
             )
 
@@ -94,12 +99,17 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InformationSection(
     league: League,
+    availableLeagues: List<League>,
+    onLeagueChange: (League) -> Unit,
     driver: Driver,
     modifier: Modifier = Modifier
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -119,13 +129,71 @@ fun InformationSection(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
-            // League Name
-            Text(
-                text = league.leagueName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+
+            // League Dropdown
+            if (availableLeagues.size > 1) {
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = league.leagueName,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        availableLeagues.forEach { leagueOption ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(leagueOption.leagueName)
+                                        // Status indicator
+                                        if (leagueOption.status != 1) {
+                                            Text(
+                                                text = when (leagueOption.status) {
+                                                    2 -> "Archived"
+                                                    else -> "Status ${leagueOption.status}"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    onLeagueChange(leagueOption)
+                                    expanded = false
+                                },
+                                leadingIcon = if (leagueOption.leagueId == league.leagueId) {
+                                    { Icon(Icons.Default.KeyboardArrowDown, contentDescription = null) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Single league - just show as text
+                Text(
+                    text = league.leagueName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 

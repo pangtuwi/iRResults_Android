@@ -2,7 +2,8 @@ package com.tudorsoft.iraceresults.data
 
 data class League(
     val leagueId: String,
-    val leagueName: String
+    val leagueName: String,
+    val status: Int = 1  // 1=active, 2=completed/archived, etc.
 )
 
 data class Driver(

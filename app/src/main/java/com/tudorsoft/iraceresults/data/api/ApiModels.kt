@@ -18,6 +18,15 @@ data class LeagueNameResponse(
     val leagueName: String
 )
 
+data class LeagueListItemResponse(
+    @SerializedName("leagueid")
+    val leagueId: String,
+    @SerializedName("leaguename")
+    val leagueName: String?,
+    @SerializedName("status")
+    val status: Int
+)
+
 data class ClassResponse(
     @SerializedName("classnumber")
     val classNumber: Int,

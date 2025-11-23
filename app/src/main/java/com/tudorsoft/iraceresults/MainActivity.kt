@@ -104,13 +104,37 @@ fun IRaceResultsApp() {
     var isRefreshingRoundEvents by remember { mutableStateOf(false) }
     var selectedRound by remember { mutableStateOf<Round?>(null) }
 
+    // Multi-league state
+    var availableLeagues by remember { mutableStateOf<List<League>>(emptyList()) }
+    var selectedLeague by remember { mutableStateOf<League?>(null) }
+
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TABLES) }
     var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    // Load user preferences on startup
+    // Load user preferences on startup and handle multi-league migration
     LaunchedEffect(Unit) {
         val prefs = preferencesManager.userPreferencesFlow.first()
+
+        // Multi-league migration: Convert old single-league setup to new format
+        if (prefs.isSetupComplete && prefs.leagueId.isNotEmpty() && prefs.savedLeagues == "[]") {
+            android.util.Log.d("MainActivity", "Migrating single league to multi-league format")
+            try {
+                // Create League object from old data
+                val league = League(
+                    leagueId = prefs.leagueId,
+                    leagueName = prefs.leagueName.ifEmpty { prefs.leagueId },
+                    status = 1
+                )
+                // Add to saved leagues
+                preferencesManager.addLeague(league)
+                // Set as selected
+                preferencesManager.setSelectedLeague(prefs.leagueId)
+                android.util.Log.d("MainActivity", "Migration complete: ${league.leagueName}")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Migration failed", e)
+            }
+        }
 
         // Migration: If setup is complete but leagueName or className need updating
         if (prefs.isSetupComplete && prefs.leagueId.isNotEmpty()) {
@@ -179,6 +203,95 @@ fun IRaceResultsApp() {
         } else {
             userPreferences = prefs
         }
+
+        // Load saved leagues and set selected league
+        val leagues = preferencesManager.getLeagues()
+        availableLeagues = leagues
+        android.util.Log.d("MainActivity", "Loaded ${leagues.size} leagues")
+
+        if (leagues.isNotEmpty()) {
+            // Set selected league from preferences, or default to first
+            val selectedId = prefs.selectedLeagueId.ifEmpty { leagues.first().leagueId }
+            selectedLeague = leagues.find { it.leagueId == selectedId } ?: leagues.first()
+            android.util.Log.d("MainActivity", "Selected league: ${selectedLeague?.leagueName}")
+        }
+    }
+
+    // League management functions
+    fun handleLeagueSwitch(league: League) {
+        scope.launch {
+            try {
+                preferencesManager.setSelectedLeague(league.leagueId)
+                selectedLeague = league
+                android.util.Log.d("MainActivity", "Switched to league: ${league.leagueName}")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to switch league", e)
+            }
+        }
+    }
+
+    fun handleAddLeague(leagueId: String) {
+        scope.launch {
+            try {
+                android.util.Log.d("MainActivity", "Adding league: $leagueId")
+
+                // Fetch league name
+                val leagueNameResponse = RetrofitClient.api.getLeagueName(leagueId)
+                if (!leagueNameResponse.isSuccessful) {
+                    android.util.Log.e("MainActivity", "Failed to fetch league name: ${leagueNameResponse.code()}")
+                    return@launch
+                }
+
+                val leagueName = leagueNameResponse.body()?.leagueName ?: leagueId
+
+                // Validate customer ID is in this league
+                val driversResponse = RetrofitClient.api.getDrivers(leagueId)
+                if (!driversResponse.isSuccessful) {
+                    android.util.Log.e("MainActivity", "Failed to fetch drivers: ${driversResponse.code()}")
+                    return@launch
+                }
+
+                val drivers = driversResponse.body()
+                val customerExists = drivers?.any { it.custId.toString() == userPreferences?.custId } == true
+
+                if (!customerExists) {
+                    android.util.Log.e("MainActivity", "Customer ID not found in league")
+                    return@launch
+                }
+
+                // Create and save league
+                val league = League(
+                    leagueId = leagueId,
+                    leagueName = leagueName,
+                    status = 1
+                )
+                preferencesManager.addLeague(league)
+
+                // Reload leagues
+                availableLeagues = preferencesManager.getLeagues()
+                android.util.Log.d("MainActivity", "League added: $leagueName")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to add league", e)
+            }
+        }
+    }
+
+    fun handleRemoveLeague(leagueId: String) {
+        scope.launch {
+            try {
+                preferencesManager.removeLeague(leagueId)
+
+                // Reload leagues and selected league
+                availableLeagues = preferencesManager.getLeagues()
+                val prefs = preferencesManager.userPreferencesFlow.first()
+                selectedLeague = availableLeagues.find { it.leagueId == prefs.selectedLeagueId }
+                    ?: availableLeagues.firstOrNull()
+
+                android.util.Log.d("MainActivity", "League removed: $leagueId")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to remove league", e)
+            }
+        }
     }
 
     // Handle reset setup
@@ -186,6 +299,8 @@ fun IRaceResultsApp() {
         scope.launch {
             preferencesManager.clearUserInfo()
             userPreferences = preferencesManager.userPreferencesFlow.first()
+            availableLeagues = emptyList()
+            selectedLeague = null
             currentDrawerRoute = ""
         }
     }
@@ -682,6 +797,19 @@ fun IRaceResultsApp() {
         }
     }
 
+    // Fetch data when selected league changes
+    LaunchedEffect(selectedLeague?.leagueId) {
+        if (selectedLeague != null && userPreferences?.isSetupComplete == true) {
+            android.util.Log.d("MainActivity", "Fetching data for league: ${selectedLeague?.leagueName}")
+            fetchStandingsData(selectedLeague!!.leagueId)
+            fetchTeamStandings(selectedLeague!!.leagueId)
+            fetchRounds(selectedLeague!!.leagueId)
+            fetchPenalties(selectedLeague!!.leagueId, userPreferences!!.custId)
+            fetchAllPenalties(selectedLeague!!.leagueId)
+            fetchLicencePoints(selectedLeague!!.leagueId)
+        }
+    }
+
     // Show setup screen if not completed
     if (userPreferences == null) {
         // Loading state
@@ -701,18 +829,6 @@ fun IRaceResultsApp() {
             errorMessage = setupErrorMessage
         )
         return
-    }
-
-    // Fetch standings data when setup is complete
-    LaunchedEffect(userPreferences!!.leagueId) {
-        if (userPreferences!!.leagueId.isNotEmpty()) {
-            fetchStandingsData(userPreferences!!.leagueId)
-            fetchTeamStandings(userPreferences!!.leagueId)
-            fetchRounds(userPreferences!!.leagueId)
-            fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId)
-            fetchAllPenalties(userPreferences!!.leagueId)
-            fetchLicencePoints(userPreferences!!.leagueId)
-        }
     }
 
     ModalNavigationDrawer(
@@ -817,33 +933,37 @@ fun IRaceResultsApp() {
                         route = currentDrawerRoute,
                         modifier = Modifier.padding(innerPadding),
                         onResetSetup = ::handleResetSetup,
+                        availableLeagues = availableLeagues,
+                        selectedLeague = selectedLeague,
+                        onAddLeague = ::handleAddLeague,
+                        onRemoveLeague = ::handleRemoveLeague,
                         teamStandings = teamStandings,
                         isRefreshingTeams = isRefreshingTeams,
-                        onRefreshTeams = { fetchTeamStandings(userPreferences!!.leagueId) },
+                        onRefreshTeams = { selectedLeague?.let { fetchTeamStandings(it.leagueId) } },
                         rounds = rounds,
                         isRefreshingRounds = isRefreshingRounds,
-                        onRefreshRounds = { fetchRounds(userPreferences!!.leagueId) },
+                        onRefreshRounds = { selectedLeague?.let { fetchRounds(it.leagueId) } },
                         penalties = penalties,
                         isRefreshingPenalties = isRefreshingPenalties,
-                        onRefreshPenalties = { fetchPenalties(userPreferences!!.leagueId, userPreferences!!.custId) },
+                        onRefreshPenalties = { selectedLeague?.let { fetchPenalties(it.leagueId, userPreferences!!.custId) } },
                         allPenalties = allPenalties,
                         isRefreshingAllPenalties = isRefreshingAllPenalties,
-                        onRefreshAllPenalties = { fetchAllPenalties(userPreferences!!.leagueId) },
+                        onRefreshAllPenalties = { selectedLeague?.let { fetchAllPenalties(it.leagueId) } },
                         licencePoints = licencePoints,
                         classes = classes,
                         isRefreshingLicencePoints = isRefreshingLicencePoints,
-                        onRefreshLicencePoints = { fetchLicencePoints(userPreferences!!.leagueId) },
+                        onRefreshLicencePoints = { selectedLeague?.let { fetchLicencePoints(it.leagueId) } },
                         selectedRound = selectedRound,
                         roundEvents = roundEvents,
                         isRefreshingRoundEvents = isRefreshingRoundEvents,
                         onRoundClick = { round ->
                             selectedRound = round
-                            fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                            selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
                         },
                         onRoundBack = { selectedRound = null },
                         onRefreshRoundEvents = {
                             if (selectedRound != null) {
-                                fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo)
+                                selectedLeague?.let { fetchRoundEvents(it.leagueId, selectedRound!!.roundNo) }
                             }
                         },
                         onClose = { currentDrawerRoute = "" }
@@ -852,10 +972,12 @@ fun IRaceResultsApp() {
                     AppDestinations.TABLES -> {
                         HomeScreen(
                             modifier = Modifier.padding(innerPadding),
-                            league = League(
+                            league = selectedLeague ?: League(
                                 leagueId = userPreferences!!.leagueId,
                                 leagueName = userPreferences!!.leagueName
                             ),
+                            availableLeagues = availableLeagues,
+                            onLeagueChange = ::handleLeagueSwitch,
                             driver = Driver(
                                 displayName = userPreferences!!.displayName,
                                 className = userPreferences!!.driverClass,
@@ -864,7 +986,7 @@ fun IRaceResultsApp() {
                             classes = classes,
                             standings = standings,
                             isRefreshing = isRefreshing,
-                            onRefresh = { fetchStandingsData(userPreferences!!.leagueId) }
+                            onRefresh = { selectedLeague?.let { fetchStandingsData(it.leagueId) } }
                         )
                     }
                     AppDestinations.ROUNDS -> {
@@ -948,6 +1070,10 @@ fun DrawerContent(
     route: String,
     modifier: Modifier = Modifier,
     onResetSetup: () -> Unit = {},
+    availableLeagues: List<League> = emptyList(),
+    selectedLeague: League? = null,
+    onAddLeague: (String) -> Unit = {},
+    onRemoveLeague: (String) -> Unit = {},
     teamStandings: List<TeamStanding> = emptyList(),
     isRefreshingTeams: Boolean = false,
     onRefreshTeams: () -> Unit = {},
@@ -1033,6 +1159,10 @@ fun DrawerContent(
         "settings" -> {
             SettingsScreen(
                 modifier = modifier,
+                savedLeagues = availableLeagues,
+                selectedLeagueId = selectedLeague?.leagueId ?: "",
+                onAddLeague = onAddLeague,
+                onRemoveLeague = onRemoveLeague,
                 onResetSetup = onResetSetup
             )
         }
