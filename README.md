@@ -6,19 +6,23 @@ An Android application for viewing iRacing league results from [iraceresults.co.
 
 ### Current Features
 - **First-Time Setup Flow**: Seamless onboarding to collect League ID and iRacing Customer ID
+- **Multi-League Support**: Track multiple iRacing leagues with automatic migration from single-league setup
 - **User Data Persistence**: Automatic storage and retrieval of user preferences using DataStore
-- **League Standings Display**: View driver standings filtered by racing class (Gold, Silver, Bronze, Unclassified)
-- **Navigation Drawer**: Quick access to key features including Rounds, Penalties, Teams, and Settings
+- **League Standings**: View driver standings filtered by racing class (Gold, Silver, Bronze, Unclassified)
+- **Round Results**: Browse race rounds with detailed event results and expandable driver cards
+- **Team Standings**: View team championship standings
+- **Penalties**: View and filter penalty decisions with fallback handling for incomplete data
+- **Licence Points**: Track licence points by class
+- **Navigation Drawer**: Quick access to all features including My Penalties, Settings, and About
+- **Pull-to-Refresh**: All data screens support swipe-to-refresh
 - **Custom Branding**: Orange color scheme and custom ADDCN font matching iraceresults.co.uk
 - **Material 3 Design**: Modern UI with adaptive navigation for phones and tablets
 
 ### In Development
-- Fetch and display actual league data from API
-- Real-time standings updates
-- Detailed race results view
-- Penalty tracking
-- Teams standings
-- License points tracking
+- Offline caching with Room database
+- Search/filter across drivers, teams, penalties
+- Push notifications for race results
+- Data visualization (points progression charts)
 
 ## Screenshots
 
@@ -85,7 +89,14 @@ app/src/main/java/com/tudorsoft/iraceresults/
 │   │   └── AppDrawer.kt              # Drawer UI component
 │   ├── screens/
 │   │   ├── HomeScreen.kt             # Main standings screen
-│   │   └── SetupScreen.kt            # First-time setup screen
+│   │   ├── SetupScreen.kt            # First-time setup screen
+│   │   ├── RoundsScreen.kt           # Round list
+│   │   ├── RoundDetailsScreen.kt     # Event results with expandable cards
+│   │   ├── TeamsScreen.kt            # Team standings
+│   │   ├── PenaltiesScreen.kt        # Penalties list
+│   │   ├── LicenceScreen.kt          # Licence points
+│   │   ├── SettingsScreen.kt         # App settings
+│   │   └── AboutScreen.kt            # App info
 │   └── theme/
 │       ├── Color.kt                  # Custom color scheme
 │       ├── Theme.kt                  # Material 3 theme
@@ -138,15 +149,13 @@ This project follows [Kotlin coding conventions](https://kotlinlang.org/docs/cod
 See [CLAUDE.md](CLAUDE.md) for detailed development progress and roadmap.
 
 ### Planned Features
-- [ ] Real-time league data synchronization
-- [ ] Pull-to-refresh for latest standings
 - [ ] Offline caching with Room database
 - [ ] Push notifications for race results
+- [ ] Search/filter across drivers, teams, penalties
 - [ ] Driver profile pages
-- [ ] Race calendar view
-- [ ] Lap time analysis
+- [ ] Data visualization (points progression charts)
 - [ ] Dark mode support
-- [ ] Multi-league support
+- [ ] Accessibility improvements (TalkBack, high contrast)
 
 ## Contributing
 

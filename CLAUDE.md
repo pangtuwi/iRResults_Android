@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 iRaceResults is an Android app for tracking iRacing league standings, penalties, and driver performance. Built with Jetpack Compose and Material 3, integrating with the iraceresults.co.uk API.
 
-**Current Version:** 1.0.3 (Beta)
+**Current Version:** 1.0.4 (Beta)
 **Package:** `com.tudorsoft.iraceresults`
 **Min SDK:** 24 (Android 7.0+) | **Target SDK:** 36
 **Tech Stack:** Kotlin, Jetpack Compose, Material 3, Retrofit 2, DataStore
@@ -193,6 +193,11 @@ try {
 
 ## Known Issues & Technical Debt
 
+### Recent Changes (1.0.4)
+- **Multi-league support** (2026-03-26): Added ability to track multiple iRacing leagues with automatic migration of existing single-league data to new multi-league storage format.
+- **UI layout reorganization** (2026-03-26): Moved league selector and driver info to improve layout and usability.
+- **AGP updated**: Android Gradle Plugin bumped to 8.13.2.
+
 ### Recent Bug Fixes
 - **Penalties not displaying** (2025-01-22): Fixed NullPointerException caused by null values in penalty API responses. Multiple fields (`roundName`, `driverName`, `stewardsDecision`, `scoreEvent`) can be null. Made all relevant fields nullable in both `Penalty` and `PenaltyResponse` models. Updated UI screens to handle nulls with fallback text: "Unknown Round", "Unknown Driver", "Unknown Event", "No decision recorded".
 
@@ -283,4 +288,4 @@ Update 3 locations when bumping version:
 
 ---
 
-**Last Updated:** 2025-01-22 (reformatted for clarity and conciseness)
+**Last Updated:** 2026-03-26
