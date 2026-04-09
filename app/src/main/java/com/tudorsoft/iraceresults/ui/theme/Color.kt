@@ -16,6 +16,30 @@ val SilverButton = Color(0xFFC0C0C0)   // Silver class button
 val BronzeButton = Color(0xFFCD7F32)   // Bronze class button
 val UnclassifiedButton = Color(0xFFE0E0E0) // Unclassified button
 
+// League theme primary colors (from iraceresults.co.uk color themes)
+val ThemeGreen = Color(0xFF2ECC71)
+val ThemeOrange = Color(0xFFE67E22)
+val ThemeBlue = Color(0xFF3498DB)
+val ThemeRed = Color(0xFFDB4437)
+val ThemePurple = Color(0xFF9B59B6)
+
+data class LeagueTheme(
+    val primary: Color,
+    val primaryDark: Color
+)
+
+fun themeForLeague(themeName: String): LeagueTheme = when (themeName.lowercase()) {
+    "green"  -> LeagueTheme(ThemeGreen,  Color(0xFF27AE60))
+    "orange" -> LeagueTheme(ThemeOrange, Color(0xFFD35400))
+    "blue"   -> LeagueTheme(ThemeBlue,   Color(0xFF2980B9))
+    "red"    -> LeagueTheme(ThemeRed,    Color(0xFFC53929))
+    "purple" -> LeagueTheme(ThemePurple, Color(0xFF8E44AD))
+    else     -> LeagueTheme(ThemeGreen,  Color(0xFF27AE60))
+}
+
+// Keep for backwards compat
+fun colorForTheme(themeName: String): Color = themeForLeague(themeName).primary
+
 // Legacy colors (keeping for compatibility)
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)

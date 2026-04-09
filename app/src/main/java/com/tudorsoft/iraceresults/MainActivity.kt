@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -64,6 +65,12 @@ import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
 import com.tudorsoft.iraceresults.ui.screens.TeamStandingsScreen
 import com.tudorsoft.iraceresults.ui.theme.AddcnFontFamily
 import com.tudorsoft.iraceresults.ui.theme.IRaceResultsTheme
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import com.tudorsoft.iraceresults.ui.theme.OrangeDark
+import com.tudorsoft.iraceresults.ui.theme.OrangePrimary
+import com.tudorsoft.iraceresults.ui.theme.themeForLeague
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -106,16 +113,21 @@ fun IRaceResultsApp() {
     var roundEvents by remember { mutableStateOf<List<com.tudorsoft.iraceresults.data.RoundEvent>>(emptyList()) }
     var isRefreshingRoundEvents by remember { mutableStateOf(false) }
     var selectedRound by remember { mutableStateOf<Round?>(null) }
+    var selectedSessionNo by remember { mutableStateOf(1) }
 
     // Multi-league state
     var availableLeagues by remember { mutableStateOf<List<League>>(emptyList()) }
     var selectedLeague by remember { mutableStateOf<League?>(null) }
+    var leagueTheme by remember { mutableStateOf(LeagueTheme(OrangePrimary, OrangeDark)) }
 
     // Driver state
     var driver by remember { mutableStateOf(Driver("", "")) }
 
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.TABLES) }
-    var currentDrawerRoute by rememberSaveable { mutableStateOf("") }
+    var currentDrawerRoute by remember { mutableStateOf("") }
+    
+    // Peristent analytics graph state
+    var perpetuatedOpponents by remember { mutableStateOf<Set<Int>?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     // Load user preferences on startup and handle multi-league migration
@@ -363,7 +375,8 @@ fun IRaceResultsApp() {
                         Round(
                             roundNo = roundResponse.roundNo,
                             trackName = roundResponse.trackName,
-                            startTime = roundResponse.startTime
+                            startTime = roundResponse.startTime,
+                            subsessionIds = roundResponse.subsessionIds
                         )
                     }
                     android.util.Log.d("MainActivity", "Fetched ${rounds.size} rounds")
@@ -587,7 +600,8 @@ fun IRaceResultsApp() {
                                         score = (driverMap["score"] as? Double)?.toInt() ?: 0,
                                         finishPosition = (driverMap["finish_position"] as? Double)?.toInt(),
                                         finishPositionInClass = (driverMap["finish_position_in_class"] as? Double)?.toInt(),
-                                        finishPositionInClassAfterPenalties = (driverMap["finish_position_in_class_after_penalties"] as? Double)?.toInt()
+                                        finishPositionInClassAfterPenalties = (driverMap["finish_position_in_class_after_penalties"] as? Double)?.toInt(),
+                                        custId = (driverMap["cust_id"] as? Double)?.toInt() ?: 0
                                     )
                                 }.sortedWith(compareBy { driver ->
                                     // Move DQ (-1) to the end by treating as Int.MAX_VALUE
@@ -628,6 +642,22 @@ fun IRaceResultsApp() {
                 roundEvents = emptyList()
             } finally {
                 isRefreshingRoundEvents = false
+            }
+        }
+    }
+
+    // Fetch color theme for the selected league
+    fun fetchColorTheme(leagueId: String) {
+        scope.launch {
+            try {
+                val response = RetrofitClient.api.getColorTheme(leagueId)
+                if (response.isSuccessful) {
+                    val themeName = response.body()?.colorTheme ?: "orange"
+                    leagueTheme = themeForLeague(themeName)
+                    android.util.Log.d("MainActivity", "Color theme for $leagueId: $themeName")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Error fetching color theme", e)
             }
         }
     }
@@ -824,6 +854,7 @@ fun IRaceResultsApp() {
     LaunchedEffect(selectedLeague?.leagueId) {
         if (selectedLeague != null && userPreferences?.isSetupComplete == true) {
             android.util.Log.d("MainActivity", "Fetching data for league: ${selectedLeague?.leagueName}")
+            fetchColorTheme(selectedLeague!!.leagueId)
             fetchStandingsData(selectedLeague!!.leagueId)
             fetchTeamStandings(selectedLeague!!.leagueId)
             fetchRounds(selectedLeague!!.leagueId)
@@ -961,7 +992,8 @@ fun IRaceResultsApp() {
                         LeagueSelectorBand(
                             league = selectedLeague!!,
                             availableLeagues = availableLeagues,
-                            onLeagueChange = ::handleLeagueSwitch
+                            onLeagueChange = ::handleLeagueSwitch,
+                            theme = leagueTheme
                         )
                     }
 
@@ -971,6 +1003,7 @@ fun IRaceResultsApp() {
                     DrawerContent(
                         route = currentDrawerRoute,
                         modifier = Modifier,
+                        theme = leagueTheme,
                         onResetSetup = ::handleResetSetup,
                         availableLeagues = availableLeagues,
                         selectedLeague = selectedLeague,
@@ -1001,11 +1034,14 @@ fun IRaceResultsApp() {
                         },
                         onRoundBack = { selectedRound = null },
                         onRefreshRoundEvents = {
-                            if (selectedRound != null) {
-                                selectedLeague?.let { fetchRoundEvents(it.leagueId, selectedRound!!.roundNo) }
+                            selectedRound?.let { round ->
+                                selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
                             }
                         },
-                        onClose = { currentDrawerRoute = "" }
+                        onClose = {
+                            scope.launch { drawerState.close() }
+                            currentDrawerRoute = ""
+                        }
                     )
                 } else when (currentDestination) {
                     AppDestinations.TABLES -> {
@@ -1019,6 +1055,7 @@ fun IRaceResultsApp() {
                             classes = classes,
                             standings = standings,
                             isRefreshing = isRefreshing,
+                            theme = leagueTheme,
                             onRefresh = { selectedLeague?.let { fetchStandingsData(it.leagueId) } }
                         )
                     }
@@ -1029,8 +1066,10 @@ fun IRaceResultsApp() {
                                 modifier = Modifier,
                                 roundNo = selectedRound!!.roundNo,
                                 trackName = selectedRound!!.trackName,
+                                subsessionIds = selectedRound!!.subsessionIds ?: emptyList(),
                                 events = roundEvents,
                                 isRefreshing = isRefreshingRoundEvents,
+                                theme = leagueTheme,
                                 onRefresh = { fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo) },
                                 onBack = { selectedRound = null }
                             )
@@ -1048,11 +1087,46 @@ fun IRaceResultsApp() {
                             )
                         }
                     }
+                    AppDestinations.ANALYSIS -> {
+                        if (selectedRound != null) {
+                            com.tudorsoft.iraceresults.ui.screens.LapTimeGraphScreen(
+                                leagueId = userPreferences!!.leagueId,
+                                roundNo = selectedRound!!.roundNo,
+                                subsessionId = selectedSessionNo,
+                                sessionIndex = (selectedRound!!.subsessionIds?.indexOf(selectedSessionNo) ?: 0) + 1,
+                                userCustId = userPreferences!!.custId.toIntOrNull() ?: 0,
+                                allSessionDrivers = roundEvents.flatMap { it.results }.flatMap { it.drivers },
+                                standings = standings,
+                                perpetuatedOpponents = perpetuatedOpponents,
+                                onOpponentsChange = { perpetuatedOpponents = it },
+                                isSyncingData = isRefreshingRoundEvents,
+                                onBack = { selectedRound = null }
+                            )
+                        } else {
+                            RoundsScreen(
+                                modifier = Modifier,
+                                rounds = rounds,
+                                isRefreshing = isRefreshingRounds,
+                                onRefresh = { fetchRounds(userPreferences!!.leagueId) },
+                                onRoundClick = { round ->
+                                    selectedRound = round
+                                    selectedSessionNo = round.subsessionIds?.firstOrNull() ?: 1
+                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                },
+                                onSubsessionClick = { round, sessionNo ->
+                                    selectedRound = round
+                                    selectedSessionNo = sessionNo
+                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                }
+                            )
+                        }
+                    }
                     AppDestinations.TEAMS -> {
                         TeamStandingsScreen(
                             modifier = Modifier,
                             teamStandings = teamStandings,
                             isRefreshing = isRefreshingTeams,
+                            theme = leagueTheme,
                             onRefresh = { fetchTeamStandings(userPreferences!!.leagueId) }
                         )
                     }
@@ -1070,6 +1144,7 @@ fun IRaceResultsApp() {
                             licencePoints = licencePoints,
                             classes = classes,
                             isRefreshing = isRefreshingLicencePoints,
+                            theme = leagueTheme,
                             onRefresh = { fetchLicencePoints(userPreferences!!.leagueId) }
                         )
                     }
@@ -1086,14 +1161,33 @@ fun LeagueSelectorBand(
     league: League,
     availableLeagues: List<League>,
     onLeagueChange: (League) -> Unit,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
+    val gradient = Brush.horizontalGradient(
+        colors = listOf(theme.primaryDark, theme.primary, theme.primaryDark)
+    )
+
+    val whiteFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        disabledTextColor = Color.White,
+        focusedBorderColor = Color.White,
+        unfocusedBorderColor = Color.White.copy(alpha = 0.7f),
+        disabledBorderColor = Color.White.copy(alpha = 0.7f),
+        focusedLabelColor = Color.White,
+        unfocusedLabelColor = Color.White.copy(alpha = 0.7f),
+        disabledLabelColor = Color.White.copy(alpha = 0.7f),
+        focusedTrailingIconColor = Color.White,
+        unfocusedTrailingIconColor = Color.White.copy(alpha = 0.7f),
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .background(brush = gradient)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         if (availableLeagues.size > 1) {
@@ -1109,7 +1203,7 @@ fun LeagueSelectorBand(
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    colors = whiteFieldColors,
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         .fillMaxWidth(),
@@ -1158,7 +1252,8 @@ fun LeagueSelectorBand(
                 label = { Text("League") },
                 enabled = false,
                 modifier = Modifier.fillMaxWidth(),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                colors = whiteFieldColors
             )
         }
     }
@@ -1170,6 +1265,7 @@ enum class AppDestinations(
 ) {
     TABLES("Tables", Icons.AutoMirrored.Filled.List),
     ROUNDS("Rounds", Icons.Default.DateRange),
+    ANALYSIS("Analysis", Icons.Default.Search),
     TEAMS("Teams", Icons.Default.Person),
     PENALTIES("Penalties", Icons.Default.Warning),
     LICENCE("Licence", Icons.Default.Star),
@@ -1187,6 +1283,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 fun DrawerContent(
     route: String,
     modifier: Modifier = Modifier,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     onResetSetup: () -> Unit = {},
     availableLeagues: List<League> = emptyList(),
     selectedLeague: League? = null,
@@ -1214,6 +1311,8 @@ fun DrawerContent(
     onRoundClick: (Round) -> Unit = {},
     onRoundBack: () -> Unit = {},
     onRefreshRoundEvents: () -> Unit = {},
+    selectedSessionNo: Int = 1,
+    userCustId: Int = 0,
     onClose: () -> Unit = {}
 ) {
     when (route) {
@@ -1224,8 +1323,10 @@ fun DrawerContent(
                     modifier = modifier,
                     roundNo = selectedRound.roundNo,
                     trackName = selectedRound.trackName,
+                    subsessionIds = selectedRound.subsessionIds ?: emptyList(),
                     events = roundEvents,
                     isRefreshing = isRefreshingRoundEvents,
+                    theme = theme,
                     onRefresh = onRefreshRoundEvents,
                     onBack = onRoundBack
                 )
@@ -1263,6 +1364,7 @@ fun DrawerContent(
                 licencePoints = licencePoints,
                 classes = classes,
                 isRefreshing = isRefreshingLicencePoints,
+                theme = theme,
                 onRefresh = onRefreshLicencePoints
             )
         }
@@ -1271,6 +1373,7 @@ fun DrawerContent(
                 modifier = modifier,
                 teamStandings = teamStandings,
                 isRefreshing = isRefreshingTeams,
+                theme = theme,
                 onRefresh = onRefreshTeams
             )
         }

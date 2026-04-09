@@ -1,5 +1,6 @@
 package com.tudorsoft.iraceresults.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -8,10 +9,14 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tudorsoft.iraceresults.data.TeamStanding
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import com.tudorsoft.iraceresults.ui.theme.OrangeDark
+import com.tudorsoft.iraceresults.ui.theme.OrangePrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,6 +24,7 @@ fun TeamStandingsScreen(
     modifier: Modifier = Modifier,
     teamStandings: List<TeamStanding> = emptyList(),
     isRefreshing: Boolean = false,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     onRefresh: () -> Unit = {}
 ) {
     PullToRefreshBox(
@@ -39,7 +45,7 @@ fun TeamStandingsScreen(
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            TeamStandingsTable(standings = teamStandings)
+            TeamStandingsTable(standings = teamStandings, theme = theme)
         }
     }
 }
@@ -47,6 +53,7 @@ fun TeamStandingsScreen(
 @Composable
 fun TeamStandingsTable(
     standings: List<TeamStanding>,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -74,6 +81,7 @@ fun TeamStandingsTable(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(theme.primaryDark)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -81,27 +89,27 @@ fun TeamStandingsTable(
                     text = "Pos",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.width(40.dp)
                 )
                 Text(
                     text = "Team",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "Points",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     textAlign = TextAlign.End,
                     modifier = Modifier.width(60.dp)
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            HorizontalDivider(color = theme.primaryDark)
 
             // Table Rows
             LazyColumn {

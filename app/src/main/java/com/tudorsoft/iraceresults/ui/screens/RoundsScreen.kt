@@ -26,7 +26,8 @@ fun RoundsScreen(
     rounds: List<Round> = emptyList(),
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
-    onRoundClick: (Round) -> Unit = {}
+    onRoundClick: (Round) -> Unit = {},
+    onSubsessionClick: ((Round, Int) -> Unit)? = null
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -66,7 +67,10 @@ fun RoundsScreen(
                     items(rounds) { round ->
                         RoundCard(
                             round = round,
-                            onClick = { onRoundClick(round) }
+                            onClick = { onRoundClick(round) },
+                            onSubsessionClick = if (onSubsessionClick != null) { 
+                                { subsessionId -> onSubsessionClick(round, subsessionId) } 
+                            } else null
                         )
                     }
                 }
@@ -79,7 +83,8 @@ fun RoundsScreen(
 fun RoundCard(
     round: Round,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onSubsessionClick: ((Int) -> Unit)? = null
 ) {
     // Check if round is completed (start time is in the past)
     val isCompleted = remember(round.startTime) {
@@ -153,6 +158,20 @@ fun RoundCard(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
+            }
+            // Subsessions row
+            if (onSubsessionClick != null && !round.subsessionIds.isNullOrEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    round.subsessionIds.forEachIndexed { index, subsessionId ->
+                        AssistChip(
+                            onClick = { onSubsessionClick(subsessionId) },
+                            label = { Text("Session ${index + 1}") }
+                        )
+                    }
+                }
             }
         }
     }

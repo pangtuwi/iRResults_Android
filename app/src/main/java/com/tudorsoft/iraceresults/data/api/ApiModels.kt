@@ -139,3 +139,30 @@ data class RoundEventResponse(
     @SerializedName("results")
     val results: List<Map<String, Any>>
 )
+
+data class ColorThemeResponse(
+    @SerializedName("leagueid")
+    val leagueId: String,
+    @SerializedName("colortheme")
+    val colorTheme: String
+)
+
+data class IracingSessionRequest(
+    @SerializedName("round_no")
+    val roundNo: Int,
+    @SerializedName("session_no")
+    val sessionNo: Int,
+    @SerializedName("session_id") // Appended to help workaround `req.body.session_id` bug on standard backend
+    val sessionId: Int = sessionNo
+)
+
+data class DriverLapData(
+    val custId: Int,
+    val displayName: String,
+    val lapTimes: List<Long>
+)
+
+data class LapTimeResponse(
+    val lap: Int,
+    val time: Double
+)

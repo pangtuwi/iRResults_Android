@@ -8,7 +8,9 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val BASE_URL = "http://iraceresults.co.uk/"
+    // Use 10.0.2.2 to access host machine's localhost from the Android emulator.
+    // Adjust the port (3000) if your local server runs on a different port.
+    private const val BASE_URL = "http://10.0.2.2:4000/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

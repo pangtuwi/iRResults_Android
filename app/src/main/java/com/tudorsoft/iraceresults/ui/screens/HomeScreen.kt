@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +30,9 @@ import com.tudorsoft.iraceresults.data.RacingClass
 import com.tudorsoft.iraceresults.data.StandingEntry
 import com.tudorsoft.iraceresults.ui.theme.BronzeButton
 import com.tudorsoft.iraceresults.ui.theme.GoldButton
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import com.tudorsoft.iraceresults.ui.theme.OrangeDark
+import com.tudorsoft.iraceresults.ui.theme.OrangePrimary
 import com.tudorsoft.iraceresults.ui.theme.SilverButton
 import com.tudorsoft.iraceresults.ui.theme.UnclassifiedButton
 
@@ -40,6 +44,7 @@ fun HomeScreen(
     classes: List<RacingClass> = emptyList(),
     standings: List<StandingEntry> = emptyList(),
     isRefreshing: Boolean = false,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     onRefresh: () -> Unit = {}
 ) {
     var selectedClass by remember { mutableStateOf(classes.firstOrNull()?.id ?: "") }
@@ -81,7 +86,8 @@ fun HomeScreen(
 
             // Standings Table
             StandingsTable(
-                standings = filteredStandings
+                standings = filteredStandings,
+                theme = theme
             )
         }
     }
@@ -158,6 +164,7 @@ fun ClassButton(
 @Composable
 fun StandingsTable(
     standings: List<StandingEntry>,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -185,6 +192,7 @@ fun StandingsTable(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(theme.primaryDark)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -192,27 +200,27 @@ fun StandingsTable(
                     text = "Pos",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.width(40.dp)
                 )
                 Text(
                     text = "Driver",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "Points",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     textAlign = TextAlign.End,
                     modifier = Modifier.width(60.dp)
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            HorizontalDivider(color = theme.primaryDark)
 
             // Table Rows
             LazyColumn {

@@ -10,6 +10,7 @@ An Android application for viewing iRacing league results from [iraceresults.co.
 - **User Data Persistence**: Automatic storage and retrieval of user preferences using DataStore
 - **League Standings**: View driver standings filtered by racing class (Gold, Silver, Bronze, Unclassified)
 - **Round Results**: Browse race rounds with detailed event results and expandable driver cards
+- **Lap Time Analysis**: Interactive graphs tracking performance comparisons against the class leader and custom opponents 
 - **Team Standings**: View team championship standings
 - **Penalties**: View and filter penalty decisions with fallback handling for incomplete data
 - **Licence Points**: Track licence points by class

@@ -193,6 +193,9 @@ try {
 
 ## Known Issues & Technical Debt
 
+### Recent Changes (1.0.5)
+- **Lap Time Analysis integration** (2026-04-09): Added interactive graphical lap time analysis mapped by sessions and rounds, featuring robust opponent auto-selection (smart-targeting the class leader from live standings).
+
 ### Recent Changes (1.0.4)
 - **Multi-league support** (2026-03-26): Added ability to track multiple iRacing leagues with automatic migration of existing single-league data to new multi-league storage format.
 - **UI layout reorganization** (2026-03-26): Moved league selector and driver info to improve layout and usability.

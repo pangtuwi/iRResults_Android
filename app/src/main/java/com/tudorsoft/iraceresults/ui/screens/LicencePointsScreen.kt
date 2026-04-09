@@ -1,5 +1,6 @@
 package com.tudorsoft.iraceresults.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,6 +19,9 @@ import com.tudorsoft.iraceresults.data.LicencePointsEntry
 import com.tudorsoft.iraceresults.data.RacingClass
 import com.tudorsoft.iraceresults.ui.theme.BronzeButton
 import com.tudorsoft.iraceresults.ui.theme.GoldButton
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import com.tudorsoft.iraceresults.ui.theme.OrangeDark
+import com.tudorsoft.iraceresults.ui.theme.OrangePrimary
 import com.tudorsoft.iraceresults.ui.theme.SilverButton
 import com.tudorsoft.iraceresults.ui.theme.UnclassifiedButton
 
@@ -28,6 +32,7 @@ fun LicencePointsScreen(
     licencePoints: List<LicencePointsEntry> = emptyList(),
     classes: List<RacingClass> = emptyList(),
     isRefreshing: Boolean = false,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     onRefresh: () -> Unit = {}
 ) {
     var selectedClass by remember { mutableStateOf(classes.firstOrNull()?.id ?: "") }
@@ -74,7 +79,8 @@ fun LicencePointsScreen(
 
             // Licence Points Table
             LicencePointsTable(
-                licencePoints = filteredLicencePoints
+                licencePoints = filteredLicencePoints,
+                theme = theme
             )
         }
     }
@@ -139,6 +145,7 @@ fun ClassFilterButton(
 @Composable
 fun LicencePointsTable(
     licencePoints: List<LicencePointsEntry>,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -166,6 +173,7 @@ fun LicencePointsTable(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(theme.primaryDark)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -173,27 +181,27 @@ fun LicencePointsTable(
                     text = "Pos",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.width(40.dp)
                 )
                 Text(
                     text = "Driver",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     text = "Points",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = Color.White,
                     textAlign = TextAlign.End,
                     modifier = Modifier.width(60.dp)
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+            HorizontalDivider(color = theme.primaryDark)
 
             // Table Rows
             LazyColumn {

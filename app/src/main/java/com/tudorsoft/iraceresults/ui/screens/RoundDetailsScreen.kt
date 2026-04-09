@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,12 +19,16 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tudorsoft.iraceresults.data.ClassResults
 import com.tudorsoft.iraceresults.data.DriverResult
 import com.tudorsoft.iraceresults.data.RoundEvent
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import com.tudorsoft.iraceresults.ui.theme.OrangeDark
+import com.tudorsoft.iraceresults.ui.theme.OrangePrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,8 +36,10 @@ fun RoundDetailsScreen(
     modifier: Modifier = Modifier,
     roundNo: Int,
     trackName: String,
+    subsessionIds: List<Int> = emptyList(),
     events: List<RoundEvent> = emptyList(),
     isRefreshing: Boolean = false,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     onRefresh: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
@@ -96,7 +103,7 @@ fun RoundDetailsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(events) { event ->
-                        EventCard(event = event)
+                        EventCard(event = event, theme = theme)
                     }
                 }
             }
@@ -107,6 +114,7 @@ fun RoundDetailsScreen(
 @Composable
 fun EventCard(
     event: RoundEvent,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -163,7 +171,7 @@ fun EventCard(
                         )
                     } else {
                         event.results.forEach { classResults ->
-                            ClassResultsSection(classResults = classResults)
+                            ClassResultsSection(classResults = classResults, theme = theme)
                         }
                     }
                 }
@@ -175,6 +183,7 @@ fun EventCard(
 @Composable
 fun ClassResultsSection(
     classResults: ClassResults,
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -197,7 +206,7 @@ fun ClassResultsSection(
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                 // Header row
-                ResultsHeaderRow()
+                ResultsHeaderRow(theme = theme)
 
                 Divider(
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -214,35 +223,43 @@ fun ClassResultsSection(
 }
 
 @Composable
-fun ResultsHeaderRow(modifier: Modifier = Modifier) {
+fun ResultsHeaderRow(
+    theme: LeagueTheme = LeagueTheme(OrangePrimary, OrangeDark),
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .background(theme.primaryDark)
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = "Pos",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.weight(0.6f)
         )
         Text(
             text = "Driver",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.weight(2.5f)
         )
         Text(
             text = "Finished",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.weight(0.9f)
         )
         Text(
             text = "Points",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.weight(0.8f)
         )
     }

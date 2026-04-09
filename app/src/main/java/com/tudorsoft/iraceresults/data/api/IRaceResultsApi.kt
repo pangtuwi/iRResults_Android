@@ -51,6 +51,18 @@ interface IRaceResultsApi {
         @Path("leagueid") leagueId: String
     ): Response<List<RoundEventResponse>>
 
+    @GET("{leagueid}/colortheme")
+    suspend fun getColorTheme(
+        @Path("leagueid") leagueId: String
+    ): Response<ColorThemeResponse>
+
     @GET("leaguelist")
     suspend fun getLeagueList(): Response<List<LeagueListItemResponse>>
+
+    @retrofit2.http.GET("{leagueid}/laptimes")
+    suspend fun getDriverLapTimes(
+        @Path("leagueid") leagueId: String,
+        @retrofit2.http.Query("subsession_id") subsessionId: Int,
+        @retrofit2.http.Query("cust_id") custId: Int
+    ): Response<List<LapTimeResponse>>
 }

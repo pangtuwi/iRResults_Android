@@ -44,7 +44,8 @@ data class TeamStanding(
 data class Round(
     val roundNo: Int,
     val trackName: String,
-    val startTime: String
+    val startTime: String,
+    val subsessionIds: List<Int>? = null
 )
 
 data class Penalty(
@@ -84,5 +85,6 @@ data class DriverResult(
     val score: Int,
     val finishPosition: Int?,
     val finishPositionInClass: Int?,
-    val finishPositionInClassAfterPenalties: Int?
+    val finishPositionInClassAfterPenalties: Int?,
+    val custId: Int = 0
 )
