@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -63,7 +65,7 @@ import com.tudorsoft.iraceresults.ui.screens.RoundsScreen
 import com.tudorsoft.iraceresults.ui.screens.SetupScreen
 import com.tudorsoft.iraceresults.ui.screens.SettingsScreen
 import com.tudorsoft.iraceresults.ui.screens.TeamStandingsScreen
-import com.tudorsoft.iraceresults.ui.theme.AddcnFontFamily
+import com.tudorsoft.iraceresults.ui.theme.OrbitronFontFamily
 import com.tudorsoft.iraceresults.ui.theme.IRaceResultsTheme
 import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
 import com.tudorsoft.iraceresults.ui.theme.OrangeDark
@@ -73,6 +75,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
+enum class ConnectionStatus { OK, ERROR, CHECKING }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,6 +119,7 @@ fun IRaceResultsApp() {
     var isRefreshingRoundEvents by remember { mutableStateOf(false) }
     var selectedRound by remember { mutableStateOf<Round?>(null) }
     var selectedSessionNo by remember { mutableStateOf(1) }
+    var selectedReportRound by remember { mutableStateOf<Round?>(null) }
 
     // Multi-league state
     var availableLeagues by remember { mutableStateOf<List<League>>(emptyList()) }
@@ -129,6 +135,45 @@ fun IRaceResultsApp() {
     // Peristent analytics graph state
     var perpetuatedOpponents by remember { mutableStateOf<Set<Int>?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    // Health state
+    var serverConnectionStatus by remember { mutableStateOf(ConnectionStatus.OK) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var isAppInForeground by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                isAppInForeground = true
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                isAppInForeground = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Forward declare the fetch functions we will call in the health recovery
+    // (We can't call them directly here since their definitions are lower down)
+    // To resolve this easily, we will pass a lambda or define a global reset trigger.
+    var retryTrigger by remember { mutableStateOf(0) }
+
+    LaunchedEffect(serverConnectionStatus, isAppInForeground) {
+        if (serverConnectionStatus == ConnectionStatus.ERROR) {
+            while (serverConnectionStatus == ConnectionStatus.ERROR && isAppInForeground) {
+                delay(60_000)
+                try {
+                    val response = RetrofitClient.api.checkHealth()
+                    if (response.isSuccessful && response.body()?.status == "ok") {
+                        serverConnectionStatus = ConnectionStatus.OK
+                        retryTrigger++
+                    }
+                } catch (e: Exception) {
+                    // still offline
+                }
+            }
+        }
+    }
 
     // Load user preferences on startup and handle multi-league migration
     LaunchedEffect(Unit) {
@@ -381,9 +426,11 @@ fun IRaceResultsApp() {
                     }
                     android.util.Log.d("MainActivity", "Fetched ${rounds.size} rounds")
                 } else {
+                    serverConnectionStatus = ConnectionStatus.ERROR
                     android.util.Log.e("MainActivity", "Failed to fetch rounds: ${response.code()}")
                 }
             } catch (e: Exception) {
+                serverConnectionStatus = ConnectionStatus.ERROR
                 android.util.Log.e("MainActivity", "Error fetching rounds", e)
             } finally {
                 isRefreshingRounds = false
@@ -759,9 +806,11 @@ fun IRaceResultsApp() {
                     android.util.Log.d("MainActivity", "Sample standings: ${standings.take(3)}")
                     android.util.Log.d("MainActivity", "Classes: ${classes.map { "${it.name}:${it.id}" }}")
                 } else {
+                    serverConnectionStatus = ConnectionStatus.ERROR
                     android.util.Log.e("MainActivity", "Failed to fetch standings: ${standingsResponse.code()}")
                 }
             } catch (e: Exception) {
+                serverConnectionStatus = ConnectionStatus.ERROR
                 android.util.Log.e("MainActivity", "Error fetching standings", e)
             } finally {
                 isRefreshing = false
@@ -846,6 +895,23 @@ fun IRaceResultsApp() {
             } catch (e: Exception) {
                 setupErrorMessage = "Connection error: ${e.message}"
                 isLoadingSetup = false
+            }
+        }
+    }
+
+    LaunchedEffect(retryTrigger) {
+        if (retryTrigger > 0) {
+            selectedLeague?.let {
+                android.util.Log.d("MainActivity", "Health restored, refetching data for league: ${it.leagueName}")
+                fetchColorTheme(it.leagueId)
+                fetchStandingsData(it.leagueId)
+                fetchTeamStandings(it.leagueId)
+                fetchRounds(it.leagueId)
+                if (userPreferences != null) {
+                    fetchPenalties(it.leagueId, userPreferences!!.custId)
+                }
+                fetchAllPenalties(it.leagueId)
+                fetchLicencePoints(it.leagueId)
             }
         }
     }
@@ -957,22 +1023,31 @@ fun IRaceResultsApp() {
                         title = {
                             Text(
                                 text = "iRaceResults",
-                                fontFamily = AddcnFontFamily,
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Normal,
+                                fontFamily = OrbitronFontFamily,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    drawerState.open()
-                                }
-                            }) {
+                            androidx.compose.material3.FilledIconButton(
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.open()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .padding(start = 8.dp, end = 8.dp)
+                                    .size(width = 56.dp, height = 36.dp),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menu",
-                                    tint = MaterialTheme.colorScheme.onBackground
+                                    contentDescription = "Menu"
                                 )
                             }
                         },
@@ -987,168 +1062,245 @@ fun IRaceResultsApp() {
                         .fillMaxSize()
                         .padding(innerPadding)
                 ) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = serverConnectionStatus == ConnectionStatus.ERROR || serverConnectionStatus == ConnectionStatus.CHECKING,
+                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Warning, contentDescription = "Error", modifier = Modifier.padding(end = 12.dp))
+                                    Text("No connection to iRaceResults server", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Button(
+                                    onClick = {
+                                        serverConnectionStatus = ConnectionStatus.CHECKING
+                                        scope.launch {
+                                            try {
+                                                val response = RetrofitClient.api.checkHealth()
+                                                if (response.isSuccessful && response.body()?.status == "ok") {
+                                                    serverConnectionStatus = ConnectionStatus.OK
+                                                    retryTrigger++
+                                                } else {
+                                                    serverConnectionStatus = ConnectionStatus.ERROR
+                                                }
+                                            } catch (e: Exception) {
+                                                serverConnectionStatus = ConnectionStatus.ERROR
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    if (serverConnectionStatus == ConnectionStatus.CHECKING) {
+                                        CircularProgressIndicator(
+                                            color = MaterialTheme.colorScheme.onError,
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("Retry", color = MaterialTheme.colorScheme.onError)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // League Selector Band
-                    if (availableLeagues.isNotEmpty() && selectedLeague != null) {
+                    if (availableLeagues.isNotEmpty() && selectedLeague != null && currentDestination == AppDestinations.TABLES && currentDrawerRoute.isEmpty()) {
                         LeagueSelectorBand(
                             league = selectedLeague!!,
                             availableLeagues = availableLeagues,
                             onLeagueChange = ::handleLeagueSwitch,
                             theme = leagueTheme
                         )
+                    } else if (selectedLeague != null && currentDrawerRoute !in listOf("settings", "about")) {
+                        Text(
+                            text = selectedLeague!!.leagueName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
+                        )
                     }
 
                     // Main Content
-                    // Check if drawer route overrides the current destination
-                    if (currentDrawerRoute.isNotEmpty()) {
-                    DrawerContent(
-                        route = currentDrawerRoute,
-                        modifier = Modifier,
-                        theme = leagueTheme,
-                        onResetSetup = ::handleResetSetup,
-                        availableLeagues = availableLeagues,
-                        selectedLeague = selectedLeague,
-                        onAddLeague = ::handleAddLeague,
-                        onRemoveLeague = ::handleRemoveLeague,
-                        teamStandings = teamStandings,
-                        isRefreshingTeams = isRefreshingTeams,
-                        onRefreshTeams = { selectedLeague?.let { fetchTeamStandings(it.leagueId) } },
-                        rounds = rounds,
-                        isRefreshingRounds = isRefreshingRounds,
-                        onRefreshRounds = { selectedLeague?.let { fetchRounds(it.leagueId) } },
-                        penalties = penalties,
-                        isRefreshingPenalties = isRefreshingPenalties,
-                        onRefreshPenalties = { selectedLeague?.let { fetchPenalties(it.leagueId, userPreferences!!.custId) } },
-                        allPenalties = allPenalties,
-                        isRefreshingAllPenalties = isRefreshingAllPenalties,
-                        onRefreshAllPenalties = { selectedLeague?.let { fetchAllPenalties(it.leagueId) } },
-                        licencePoints = licencePoints,
-                        classes = classes,
-                        isRefreshingLicencePoints = isRefreshingLicencePoints,
-                        onRefreshLicencePoints = { selectedLeague?.let { fetchLicencePoints(it.leagueId) } },
-                        selectedRound = selectedRound,
-                        roundEvents = roundEvents,
-                        isRefreshingRoundEvents = isRefreshingRoundEvents,
-                        onRoundClick = { round ->
-                            selectedRound = round
-                            selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
-                        },
-                        onRoundBack = { selectedRound = null },
-                        onRefreshRoundEvents = {
-                            selectedRound?.let { round ->
-                                selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
-                            }
-                        },
-                        onClose = {
-                            scope.launch { drawerState.close() }
-                            currentDrawerRoute = ""
-                        }
-                    )
-                } else when (currentDestination) {
-                    AppDestinations.TABLES -> {
-                        HomeScreen(
-                            modifier = Modifier,
-                            driver = Driver(
-                                displayName = userPreferences!!.displayName,
-                                className = userPreferences!!.driverClass,
-                                custId = userPreferences!!.custId.toIntOrNull() ?: 0
-                            ),
-                            classes = classes,
-                            standings = standings,
-                            isRefreshing = isRefreshing,
-                            theme = leagueTheme,
-                            onRefresh = { selectedLeague?.let { fetchStandingsData(it.leagueId) } }
-                        )
-                    }
-                    AppDestinations.ROUNDS -> {
-                        if (selectedRound != null) {
-                            // Show round details screen
-                            RoundDetailsScreen(
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        // Check if drawer route overrides the current destination
+                        if (currentDrawerRoute.isNotEmpty()) {
+                            DrawerContent(
+                                route = currentDrawerRoute,
                                 modifier = Modifier,
-                                roundNo = selectedRound!!.roundNo,
-                                trackName = selectedRound!!.trackName,
-                                subsessionIds = selectedRound!!.subsessionIds ?: emptyList(),
-                                events = roundEvents,
-                                isRefreshing = isRefreshingRoundEvents,
                                 theme = leagueTheme,
-                                onRefresh = { fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo) },
-                                onBack = { selectedRound = null }
-                            )
-                        } else {
-                            // Show rounds list screen
-                            RoundsScreen(
-                                modifier = Modifier,
+                                onResetSetup = ::handleResetSetup,
+                                availableLeagues = availableLeagues,
+                                selectedLeague = selectedLeague,
+                                onAddLeague = ::handleAddLeague,
+                                onRemoveLeague = ::handleRemoveLeague,
+                                teamStandings = teamStandings,
+                                isRefreshingTeams = isRefreshingTeams,
+                                onRefreshTeams = { selectedLeague?.let { fetchTeamStandings(it.leagueId) } },
                                 rounds = rounds,
-                                isRefreshing = isRefreshingRounds,
-                                onRefresh = { fetchRounds(userPreferences!!.leagueId) },
+                                isRefreshingRounds = isRefreshingRounds,
+                                onRefreshRounds = { selectedLeague?.let { fetchRounds(it.leagueId) } },
+                                penalties = penalties,
+                                isRefreshingPenalties = isRefreshingPenalties,
+                                onRefreshPenalties = { selectedLeague?.let { fetchPenalties(it.leagueId, userPreferences!!.custId) } },
+                                allPenalties = allPenalties,
+                                isRefreshingAllPenalties = isRefreshingAllPenalties,
+                                onRefreshAllPenalties = { selectedLeague?.let { fetchAllPenalties(it.leagueId) } },
+                                licencePoints = licencePoints,
+                                classes = classes,
+                                isRefreshingLicencePoints = isRefreshingLicencePoints,
+                                onRefreshLicencePoints = { selectedLeague?.let { fetchLicencePoints(it.leagueId) } },
+                                selectedRound = selectedRound,
+                                roundEvents = roundEvents,
+                                isRefreshingRoundEvents = isRefreshingRoundEvents,
                                 onRoundClick = { round ->
                                     selectedRound = round
-                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
-                                }
-                            )
-                        }
-                    }
-                    AppDestinations.ANALYSIS -> {
-                        if (selectedRound != null) {
-                            com.tudorsoft.iraceresults.ui.screens.LapTimeGraphScreen(
-                                leagueId = userPreferences!!.leagueId,
-                                roundNo = selectedRound!!.roundNo,
-                                subsessionId = selectedSessionNo,
-                                sessionIndex = (selectedRound!!.subsessionIds?.indexOf(selectedSessionNo) ?: 0) + 1,
-                                userCustId = userPreferences!!.custId.toIntOrNull() ?: 0,
-                                allSessionDrivers = roundEvents.flatMap { it.results }.flatMap { it.drivers },
-                                standings = standings,
-                                perpetuatedOpponents = perpetuatedOpponents,
-                                onOpponentsChange = { perpetuatedOpponents = it },
-                                isSyncingData = isRefreshingRoundEvents,
-                                onBack = { selectedRound = null }
-                            )
-                        } else {
-                            RoundsScreen(
-                                modifier = Modifier,
-                                rounds = rounds,
-                                isRefreshing = isRefreshingRounds,
-                                onRefresh = { fetchRounds(userPreferences!!.leagueId) },
-                                onRoundClick = { round ->
-                                    selectedRound = round
-                                    selectedSessionNo = round.subsessionIds?.firstOrNull() ?: 1
-                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                    selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
                                 },
-                                onSubsessionClick = { round, sessionNo ->
-                                    selectedRound = round
-                                    selectedSessionNo = sessionNo
-                                    fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                onRoundBack = { selectedRound = null },
+                                onRefreshRoundEvents = {
+                                    selectedRound?.let { round ->
+                                        selectedLeague?.let { fetchRoundEvents(it.leagueId, round.roundNo) }
+                                    }
+                                },
+                                onClose = {
+                                    scope.launch { drawerState.close() }
+                                    currentDrawerRoute = ""
                                 }
                             )
+                        } else when (currentDestination) {
+                            AppDestinations.TABLES -> {
+                                HomeScreen(
+                                    modifier = Modifier,
+                                    driver = Driver(
+                                        displayName = userPreferences!!.displayName,
+                                        className = userPreferences!!.driverClass,
+                                        custId = userPreferences!!.custId.toIntOrNull() ?: 0
+                                    ),
+                                    classes = classes,
+                                    standings = standings,
+                                    isRefreshing = isRefreshing,
+                                    theme = leagueTheme,
+                                    onRefresh = { selectedLeague?.let { fetchStandingsData(it.leagueId) } }
+                                )
+                            }
+                            AppDestinations.ROUNDS -> {
+                                if (selectedRound != null) {
+                                    // Show round details screen
+                                    RoundDetailsScreen(
+                                        modifier = Modifier,
+                                        roundNo = selectedRound!!.roundNo,
+                                        trackName = selectedRound!!.trackName,
+                                        subsessionIds = selectedRound!!.subsessionIds ?: emptyList(),
+                                        events = roundEvents,
+                                        isRefreshing = isRefreshingRoundEvents,
+                                        theme = leagueTheme,
+                                        onRefresh = { fetchRoundEvents(userPreferences!!.leagueId, selectedRound!!.roundNo) },
+                                        onBack = { selectedRound = null }
+                                    )
+                                } else {
+                                    // Show rounds list screen
+                                    RoundsScreen(
+                                        modifier = Modifier,
+                                        theme = leagueTheme,
+                                        rounds = rounds,
+                                        isRefreshing = isRefreshingRounds,
+                                        onRefresh = { fetchRounds(userPreferences!!.leagueId) },
+                                        onRoundClick = { round ->
+                                            selectedRound = round
+                                            fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                        }
+                                    )
+                                }
+                            }
+                            AppDestinations.ANALYSIS -> {
+                                if (selectedReportRound != null) {
+                                    com.tudorsoft.iraceresults.ui.screens.AiReportScreen(
+                                        leagueId = userPreferences!!.leagueId,
+                                        roundNo = selectedReportRound!!.roundNo,
+                                        theme = leagueTheme,
+                                        onBack = { selectedReportRound = null }
+                                    )
+                                } else if (selectedRound != null) {
+                                    com.tudorsoft.iraceresults.ui.screens.LapTimeGraphScreen(
+                                        leagueId = userPreferences!!.leagueId,
+                                        roundNo = selectedRound!!.roundNo,
+                                        subsessionId = selectedSessionNo,
+                                        sessionIndex = (selectedRound!!.subsessionIds?.indexOf(selectedSessionNo) ?: 0) + 1,
+                                        userCustId = userPreferences!!.custId.toIntOrNull() ?: 0,
+                                        allSessionDrivers = roundEvents.flatMap { it.results }.flatMap { it.drivers },
+                                        standings = standings,
+                                        perpetuatedOpponents = perpetuatedOpponents,
+                                        onOpponentsChange = { perpetuatedOpponents = it },
+                                        isSyncingData = isRefreshingRoundEvents,
+                                        onBack = { selectedRound = null }
+                                    )
+                                } else {
+                                    RoundsScreen(
+                                        title = "Analysis",
+                                        modifier = Modifier,
+                                        theme = leagueTheme,
+                                        rounds = rounds,
+                                        isRefreshing = isRefreshingRounds,
+                                        onRefresh = { fetchRounds(userPreferences!!.leagueId) },
+                                        onRoundClick = { round ->
+                                            selectedRound = round
+                                            selectedSessionNo = round.subsessionIds?.firstOrNull() ?: 1
+                                            fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                        },
+                                        onSubsessionClick = { round, sessionNo ->
+                                            selectedRound = round
+                                            selectedSessionNo = sessionNo
+                                            fetchRoundEvents(userPreferences!!.leagueId, round.roundNo)
+                                        },
+                                        onReportClick = { round ->
+                                            selectedReportRound = round
+                                        }
+                                    )
+                                }
+                            }
+                            AppDestinations.TEAMS -> {
+                                TeamStandingsScreen(
+                                    modifier = Modifier,
+                                    teamStandings = teamStandings,
+                                    isRefreshing = isRefreshingTeams,
+                                    theme = leagueTheme,
+                                    onRefresh = { fetchTeamStandings(userPreferences!!.leagueId) }
+                                )
+                            }
+                            AppDestinations.PENALTIES -> {
+                                AllPenaltiesScreen(
+                                    modifier = Modifier,
+                                    theme = leagueTheme,
+                                    penalties = allPenalties,
+                                    isRefreshing = isRefreshingAllPenalties,
+                                    onRefresh = { fetchAllPenalties(userPreferences!!.leagueId) }
+                                )
+                            }
+                            AppDestinations.LICENCE -> {
+                                LicencePointsScreen(
+                                    modifier = Modifier,
+                                    licencePoints = licencePoints,
+                                    classes = classes,
+                                    isRefreshing = isRefreshingLicencePoints,
+                                    theme = leagueTheme,
+                                    onRefresh = { fetchLicencePoints(userPreferences!!.leagueId) }
+                                )
+                            }
                         }
                     }
-                    AppDestinations.TEAMS -> {
-                        TeamStandingsScreen(
-                            modifier = Modifier,
-                            teamStandings = teamStandings,
-                            isRefreshing = isRefreshingTeams,
-                            theme = leagueTheme,
-                            onRefresh = { fetchTeamStandings(userPreferences!!.leagueId) }
-                        )
-                    }
-                    AppDestinations.PENALTIES -> {
-                        AllPenaltiesScreen(
-                            modifier = Modifier,
-                            penalties = allPenalties,
-                            isRefreshing = isRefreshingAllPenalties,
-                            onRefresh = { fetchAllPenalties(userPreferences!!.leagueId) }
-                        )
-                    }
-                    AppDestinations.LICENCE -> {
-                        LicencePointsScreen(
-                            modifier = Modifier,
-                            licencePoints = licencePoints,
-                            classes = classes,
-                            isRefreshing = isRefreshingLicencePoints,
-                            theme = leagueTheme,
-                            onRefresh = { fetchLicencePoints(userPreferences!!.leagueId) }
-                        )
-                    }
-                }
                 }
             }
         }
@@ -1188,7 +1340,7 @@ fun LeagueSelectorBand(
         modifier = modifier
             .fillMaxWidth()
             .background(brush = gradient)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
     ) {
         if (availableLeagues.size > 1) {
             ExposedDropdownMenuBox(
@@ -1334,6 +1486,7 @@ fun DrawerContent(
                 // Show rounds list screen
                 RoundsScreen(
                     modifier = modifier,
+                    theme = theme,
                     rounds = rounds,
                     isRefreshing = isRefreshingRounds,
                     onRefresh = onRefreshRounds,
@@ -1344,6 +1497,7 @@ fun DrawerContent(
         "penalties" -> {
             AllPenaltiesScreen(
                 modifier = modifier,
+                theme = theme,
                 penalties = allPenalties,
                 isRefreshing = isRefreshingAllPenalties,
                 onRefresh = onRefreshAllPenalties
@@ -1352,6 +1506,7 @@ fun DrawerContent(
         "my_penalties" -> {
             PenaltiesScreen(
                 modifier = modifier,
+                theme = theme,
                 penalties = penalties,
                 isRefreshing = isRefreshingPenalties,
                 onRefresh = onRefreshPenalties,

@@ -166,3 +166,10 @@ data class LapTimeResponse(
     val lap: Int,
     val time: Double
 )
+
+data class HealthResponse(
+    @SerializedName("status")
+    val status: String,
+    @SerializedName("uptime")
+    val uptime: Long
+)

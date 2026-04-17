@@ -2,8 +2,8 @@ package com.tudorsoft.iraceresults.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -35,8 +35,9 @@ fun TeamStandingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "Team Standings",
@@ -112,8 +113,8 @@ fun TeamStandingsTable(
             HorizontalDivider(color = theme.primaryDark)
 
             // Table Rows
-            LazyColumn {
-                itemsIndexed(standings) { index, team ->
+            Column {
+                standings.forEachIndexed { index, team ->
                     TeamStandingRow(team = team)
                     if (index < standings.size - 1) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))

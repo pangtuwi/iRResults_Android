@@ -65,4 +65,13 @@ interface IRaceResultsApi {
         @retrofit2.http.Query("subsession_id") subsessionId: Int,
         @retrofit2.http.Query("cust_id") custId: Int
     ): Response<List<LapTimeResponse>>
+
+    @GET("health")
+    suspend fun checkHealth(): Response<HealthResponse>
+
+    @GET("{leagueid}/AIRAW")
+    suspend fun getAiReport(
+        @Path("leagueid") leagueId: String,
+        @retrofit2.http.Query("Round") roundNo: Int
+    ): Response<okhttp3.ResponseBody>
 }

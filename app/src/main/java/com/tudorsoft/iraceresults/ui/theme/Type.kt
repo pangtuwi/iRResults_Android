@@ -13,6 +13,11 @@ val AddcnFontFamily = FontFamily(
     Font(R.font.addcn, FontWeight.Normal)
 )
 
+val OrbitronFontFamily = FontFamily(
+    Font(R.font.orbitron_black, FontWeight.Normal),
+    Font(R.font.orbitron_black, FontWeight.Black)
+)
+
 // Set of Material typography styles to start with
 val Typography = Typography(
     bodyLarge = TextStyle(
@@ -23,8 +28,8 @@ val Typography = Typography(
         letterSpacing = 0.5.sp
     ),
     displayLarge = TextStyle(
-        fontFamily = AddcnFontFamily,
-        fontWeight = FontWeight.Normal,
+        fontFamily = OrbitronFontFamily,
+        fontWeight = FontWeight.Black,
         fontSize = 48.sp,
         lineHeight = 56.sp,
         letterSpacing = 0.sp

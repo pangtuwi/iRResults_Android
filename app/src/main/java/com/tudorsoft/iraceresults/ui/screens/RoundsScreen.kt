@@ -18,16 +18,21 @@ import com.tudorsoft.iraceresults.data.Round
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoundsScreen(
     modifier: Modifier = Modifier,
+    title: String = "Rounds",
+    theme: LeagueTheme,
     rounds: List<Round> = emptyList(),
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     onRoundClick: (Round) -> Unit = {},
-    onSubsessionClick: ((Round, Int) -> Unit)? = null
+    onSubsessionClick: ((Round, Int) -> Unit)? = null,
+    onReportClick: ((Round) -> Unit)? = null
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -37,11 +42,11 @@ fun RoundsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Rounds",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -67,9 +72,13 @@ fun RoundsScreen(
                     items(rounds) { round ->
                         RoundCard(
                             round = round,
+                            theme = theme,
                             onClick = { onRoundClick(round) },
                             onSubsessionClick = if (onSubsessionClick != null) { 
                                 { subsessionId -> onSubsessionClick(round, subsessionId) } 
+                            } else null,
+                            onReportClick = if (onReportClick != null) {
+                                { onReportClick(round) }
                             } else null
                         )
                     }
@@ -82,9 +91,11 @@ fun RoundsScreen(
 @Composable
 fun RoundCard(
     round: Round,
+    theme: LeagueTheme,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
-    onSubsessionClick: ((Int) -> Unit)? = null
+    onSubsessionClick: ((Int) -> Unit)? = null,
+    onReportClick: (() -> Unit)? = null
 ) {
     // Check if round is completed (start time is in the past)
     val isCompleted = remember(round.startTime) {
@@ -116,12 +127,19 @@ fun RoundCard(
         ),
         shape = MaterialTheme.shapes.large
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(6.dp)
+                    .background(theme.primary)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             // Header row with round number and date/time
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -142,29 +160,52 @@ fun RoundCard(
                 )
             }
 
-            // Track name with icon
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Place,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = round.trackName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
+                // Track name with icon
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = round.trackName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                }
+
+                if (onReportClick != null) {
+                    OutlinedButton(
+                        onClick = onReportClick,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Text("Report", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
             // Subsessions row
             if (onSubsessionClick != null && !round.subsessionIds.isNullOrEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text(
+                        text = "Lap times: ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
                     round.subsessionIds.forEachIndexed { index, subsessionId ->
                         AssistChip(
                             onClick = { onSubsessionClick(subsessionId) },
@@ -173,6 +214,7 @@ fun RoundCard(
                     }
                 }
             }
+        }
         }
     }
 }

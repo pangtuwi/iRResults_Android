@@ -17,11 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tudorsoft.iraceresults.data.Penalty
+import com.tudorsoft.iraceresults.ui.theme.LeagueTheme
+import androidx.compose.foundation.background
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllPenaltiesScreen(
     modifier: Modifier = Modifier,
+    theme: LeagueTheme,
     penalties: List<Penalty> = emptyList(),
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {}
@@ -50,8 +53,8 @@ fun AllPenaltiesScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Header with title
             Text(
@@ -102,7 +105,7 @@ fun AllPenaltiesScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filteredPenalties) { penalty ->
-                        AllPenaltyCard(penalty = penalty)
+                        AllPenaltyCard(penalty = penalty, theme = theme)
                     }
                 }
             }
@@ -113,6 +116,7 @@ fun AllPenaltiesScreen(
 @Composable
 fun AllPenaltyCard(
     penalty: Penalty,
+    theme: LeagueTheme,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -125,12 +129,19 @@ fun AllPenaltyCard(
         shape = MaterialTheme.shapes.large,
         onClick = { expanded = !expanded }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(6.dp)
+                    .background(theme.primary)
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             // Header row with warning icon and round info
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -197,6 +208,7 @@ fun AllPenaltyCard(
                     )
                 }
             }
+        }
         }
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.tudorsoft.iraceresults.data.Driver
+import com.tudorsoft.iraceresults.ui.theme.OrbitronFontFamily
 
 @Composable
 fun AppDrawer(
@@ -84,7 +85,8 @@ private fun DrawerHeader(modifier: Modifier = Modifier) {
             Text(
                 text = "iRaceResults",
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+                fontFamily = OrbitronFontFamily,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onPrimary
             )
             Text(
